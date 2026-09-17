@@ -158,10 +158,14 @@ nav button[aria-selected=true]{color:var(--solid);font-weight:600}
 </head>
 <body>
 
-<div id="gate" class="gate">
+<div id="gate" class="gate" hidden>
   <div class="card">
     <h1 style="margin:0 0 4px;font-size:19px;letter-spacing:-.02em">Construction</h1>
-    <p class="label" style="margin:0 0 16px">Enter the passcode to open the tracker.</p>
+    <p class="label" style="margin:0 0 16px" id="gateMsg">Enter the passcode to open the tracker.</p>
+    <div class="field" id="apiField" hidden>
+      <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:5px">Apps Script URL</label>
+      <input id="apiUrl" type="url" placeholder="https://script.google.com/…/exec" autocomplete="off">
+    </div>
     <div class="field"><input id="pass" type="password" inputmode="numeric" placeholder="Passcode" autocomplete="off"></div>
     <button class="btn" id="unlock">Open</button>
     <p id="gateErr" class="tiny neg" style="margin:10px 0 0;display:none"></p>
@@ -195,10 +199,15 @@ nav button[aria-selected=true]{color:var(--solid);font-weight:600}
 <div class="sheet" id="sheet"></div>
 <div class="toast" id="toast"></div>
 
+<script src="config.js"></script>
 <script>
 /* ------------------------------------------------ config */
-const API = 'https://script.google.com/macros/s/AKfycbyQrgFU9DzAoQFRogXXT0b40zkDXRv7RHv9G58hm9EzG8k4r-5Xm2csl71EPA8vIeNnzQ/exec';
-const LS  = 'cbt.pass';
+const LS     = 'cbt.pass';
+const LS_API = 'cbt.api';
+
+/* The endpoint comes from config.js. If that is blank — a fresh device, or a
+   copy of the app without it — the gate asks for it and remembers it here. */
+let API  = (window.TRACKER_API || '').trim() || localStorage.getItem(LS_API) || '';
 
 let D = null;        // full dataset
 let pass = localStorage.getItem(LS) || '';
@@ -640,9 +649,18 @@ function confirmDelete(e) {
 
 /* ------------------------------------------------ network */
 async function load() {
-  const r = await fetch(API + '?passcode=' + encodeURIComponent(pass) + '&t=' + Date.now());
-  const j = await r.json();
-  if (!j.ok) throw new Error(j.error);
+  let j;
+  try {
+    const r = await fetch(API + '?passcode=' + encodeURIComponent(pass) + '&t=' + Date.now());
+    j = await r.json();
+  } catch (e) {
+    const err = new Error('unreachable'); err.kind = 'network'; throw err;
+  }
+  if (!j.ok) {
+    const err = new Error(j.error);
+    err.kind = (j.error === 'bad_passcode') ? 'auth' : 'server';
+    throw err;
+  }
   D = j.data; render();
 }
 
@@ -680,28 +698,69 @@ document.querySelectorAll('nav button').forEach(b => {
 });
 $('#fab').onclick = addExpense;
 
+if (!API) $('#apiField').hidden = false;
+
+function gateError(msg) {
+  $('#gateErr').textContent = msg;
+  $('#gateErr').style.display = 'block';
+  $('#unlock').textContent = 'Open';
+}
+
 $('#unlock').onclick = async () => {
+  if (!$('#apiField').hidden) {
+    const u = $('#apiUrl').value.trim();
+    if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(u))
+      return gateError('That should be your Apps Script URL, ending in /exec.');
+    API = u;
+  }
+  if (!API) return gateError('No Apps Script URL set. Add it to config.js.');
   pass = $('#pass').value.trim();
-  if (!pass) return;
+  if (!pass) return gateError('Enter your passcode.');
   $('#unlock').textContent = 'Checking\u2026';
   try {
     await load();
     localStorage.setItem(LS, pass);
+    localStorage.setItem(LS_API, API);
     $('#gate').hidden = true; $('#app').hidden = false;
   } catch (err) {
-    $('#gateErr').textContent = 'That passcode did not work.';
-    $('#gateErr').style.display = 'block';
-    $('#unlock').textContent = 'Open';
+    gateError(err.kind === 'auth'
+      ? 'That passcode did not work.'
+      : 'Could not reach the sheet. Check the URL and that the deployment is live.');
   }
 };
 $('#pass').addEventListener('keydown', e => { if (e.key === 'Enter') $('#unlock').click(); });
 
-(async function () {
-  if (!pass) return;
+function showGate(msg, keepPass) {
+  $('#gate').hidden = false;
+  if (msg) gateError(msg);
+  if (keepPass) $('#pass').value = pass;
+}
+
+(async function boot() {
+  if (!pass || !API) { showGate(); return; }
+
+  // we have credentials — show a quiet opening state, not the passcode form
+  $('#gate').hidden = false;
+  $('#gateMsg').textContent = 'Opening\u2026';
+  $('#pass').closest('.field').hidden = true;
+  $('#unlock').hidden = true;
+
   try {
     await load();
     $('#gate').hidden = true; $('#app').hidden = false;
-  } catch (err) { localStorage.removeItem(LS); }
+  } catch (err) {
+    $('#gateMsg').textContent = 'Enter the passcode to open the tracker.';
+    $('#pass').closest('.field').hidden = false;
+    $('#unlock').hidden = false;
+    if (err.kind === 'auth') {
+      // the only case where the stored passcode is genuinely wrong
+      localStorage.removeItem(LS); pass = '';
+      gateError('Your saved passcode no longer works.');
+    } else {
+      // network blip or a broken deployment — keep the passcode, offer a retry
+      showGate('Could not reach the sheet. Tap Open to try again.', true);
+    }
+  }
 })();
 </script>
 </body>
