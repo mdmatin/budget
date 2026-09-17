@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4f4f2">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<title>Construction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --canvas:#f4f4f2;
+  --surface:#ffffff;
+  --ink:#16181b;
+  --muted:#70757c;
+  --faint:#9aa0a6;
+  --line:#e3e2de;
+  --solid:#1e3a52;
+  --over:#a8201a;
+  --radius:14px;
+  --pad:16px;
+  --nav:64px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--canvas);color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  font-size:15px;line-height:1.45;
+  padding-bottom:calc(var(--nav) + env(safe-area-inset-bottom));
+  -webkit-font-smoothing:antialiased;
+}
+.num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit;width:100%;background:var(--surface);
+  border:1px solid var(--line);border-radius:10px;padding:11px 12px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--solid);box-shadow:0 0 0 3px rgba(30,58,82,.12)}
+:focus-visible{outline:2px solid var(--solid);outline-offset:2px}
+
+/* ---------- shell ---------- */
+header{
+  position:sticky;top:0;z-index:20;background:rgba(244,244,242,.92);
+  backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--line);
+  padding:calc(env(safe-area-inset-top) + 12px) var(--pad) 12px;
+  display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+}
+header h1{margin:0;font-size:17px;font-weight:600;letter-spacing:-.015em}
+header .sub{font-size:12.5px;color:var(--muted)}
+main{padding:var(--pad);max-width:1080px;margin:0 auto}
+.view{display:none}
+.view.on{display:block}
+
+nav{
+  position:fixed;left:0;right:0;bottom:0;z-index:30;
+  background:rgba(255,255,255,.94);backdrop-filter:saturate(180%) blur(12px);
+  border-top:1px solid var(--line);display:flex;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+nav button{flex:1;padding:9px 0 11px;font-size:11px;color:var(--faint);
+  display:flex;flex-direction:column;align-items:center;gap:3px;font-weight:500}
+nav button svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.7}
+nav button[aria-selected=true]{color:var(--solid);font-weight:600}
+
+/* ---------- pieces ---------- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:var(--pad);margin-bottom:12px}
+.rowline{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.label{font-size:12.5px;color:var(--muted)}
+.big{font-size:30px;font-weight:600;letter-spacing:-.03em;line-height:1.1}
+.mid{font-size:19px;font-weight:600;letter-spacing:-.02em}
+.neg{color:var(--over)}
+.divider{height:1px;background:var(--line);margin:14px 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.muted{color:var(--muted)}
+.tiny{font-size:11.5px}
+
+/* progress */
+.bar{position:relative;height:7px;border-radius:4px;background:#eceae5;overflow:hidden;margin:9px 0 6px}
+.bar>i{position:absolute;inset:0 auto 0 0;background:var(--solid);border-radius:4px}
+.bar.over{background:#f2d9d7}
+.bar.over>i{background:var(--over)}
+
+/* the split bar — solid = person A, hatched = person B */
+.split{position:relative;height:16px;border-radius:5px;overflow:hidden;background:#eceae5;margin:12px 0 8px}
+.split>.a{position:absolute;left:0;top:0;bottom:0;background:var(--solid)}
+.split>.b{position:absolute;top:0;bottom:0;background:
+  repeating-linear-gradient(135deg,var(--solid) 0 3px,#6f8496 3px 7px)}
+.split>.mark{position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:var(--ink);opacity:.45}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--muted);align-items:center}
+.legend span{display:flex;align-items:center;gap:6px}
+.sw{width:11px;height:11px;border-radius:3px;background:var(--solid);flex:none}
+.sw.hatch{background:repeating-linear-gradient(135deg,var(--solid) 0 3px,#6f8496 3px 7px)}
+
+/* category */
+.cat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:12px;overflow:hidden}
+.cat>summary{list-style:none;cursor:pointer;padding:var(--pad)}
+.cat>summary::-webkit-details-marker{display:none}
+.cat .chev{transition:transform .18s ease;color:var(--faint)}
+.cat[open] .chev{transform:rotate(180deg)}
+.subs{padding:0 var(--pad) 6px}
+.sub{padding:11px 0;border-top:1px solid var(--line);display:block;width:100%;text-align:left}
+.sub .bar{margin:7px 0 0}
+
+/* lists */
+.item{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);align-items:flex-start}
+.item:last-child{border-bottom:0}
+.item .who{font-size:11px;font-weight:600;padding:2px 7px;border-radius:5px;border:1px solid var(--line);white-space:nowrap}
+.item .who.b{background:#f2f1ee}
+.daterule{font-size:11.5px;color:var(--faint);font-weight:600;margin:20px 0 2px}
+
+/* fab + sheet */
+.fab{position:fixed;right:16px;bottom:calc(var(--nav) + 16px + env(safe-area-inset-bottom));z-index:31;
+  width:52px;height:52px;border-radius:26px;background:var(--solid);color:#fff;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(22,24,27,.22)}
+.fab svg{width:23px;height:23px;stroke:currentColor;stroke-width:2;fill:none}
+.scrim{position:fixed;inset:0;background:rgba(22,24,27,.42);z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:41;background:var(--surface);
+  border-radius:18px 18px 0 0;padding:18px var(--pad) calc(22px + env(safe-area-inset-bottom));
+  transform:translateY(102%);transition:transform .26s cubic-bezier(.32,.72,0,1);
+  max-height:92vh;overflow-y:auto;max-width:560px;margin:0 auto}
+.sheet.on{transform:translateY(0)}
+.sheet h2{margin:0 0 14px;font-size:17px;font-weight:600;letter-spacing:-.015em}
+.field{margin-bottom:11px}
+.field label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:5px}
+.btn{width:100%;padding:13px;border-radius:11px;background:var(--solid);color:#fff;font-weight:600;margin-top:6px}
+.btn.ghost{background:transparent;color:var(--muted);font-weight:500;margin-top:2px}
+.btn[disabled]{opacity:.5}
+.seg{display:flex;gap:8px}
+.seg button{flex:1;padding:11px;border:1px solid var(--line);border-radius:10px;font-weight:500;font-size:14px}
+.seg button[aria-pressed=true]{border-color:var(--solid);background:rgba(30,58,82,.07);color:var(--solid);font-weight:600}
+
+.empty{text-align:center;padding:48px 20px;color:var(--muted)}
+.empty b{display:block;color:var(--ink);font-weight:600;margin-bottom:5px}
+.toast{position:fixed;left:50%;bottom:calc(var(--nav) + 24px);transform:translate(-50%,14px);
+  background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:13.5px;z-index:60;
+  opacity:0;pointer-events:none;transition:all .22s}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.gate{max-width:360px;margin:16vh auto;padding:0 var(--pad)}
+@media (min-width:760px){
+  :root{--nav:0px}
+  body{padding-bottom:24px}
+  nav{position:sticky;top:0;bottom:auto;border-top:0;border-bottom:1px solid var(--line);
+    background:rgba(244,244,242,.92);max-width:1080px;margin:0 auto}
+  nav button{flex:0 0 auto;padding:12px 18px;flex-direction:row;font-size:13.5px}
+  nav button svg{width:17px;height:17px}
+  .fab{bottom:24px;right:24px}
+  .grid2{grid-template-columns:repeat(4,1fr)}
+  .cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px;align-items:start}
+  .cat{margin-bottom:0}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div id="gate" class="gate">
+  <div class="card">
+    <h1 style="margin:0 0 4px;font-size:19px;letter-spacing:-.02em">Construction</h1>
+    <p class="label" style="margin:0 0 16px">Enter the passcode to open the tracker.</p>
+    <div class="field"><input id="pass" type="password" inputmode="numeric" placeholder="Passcode" autocomplete="off"></div>
+    <button class="btn" id="unlock">Open</button>
+    <p id="gateErr" class="tiny neg" style="margin:10px 0 0;display:none"></p>
+  </div>
+</div>
+
+<div id="app" hidden>
+  <header>
+    <h1 id="projName">Construction</h1>
+    <span class="sub" id="headSub"></span>
+  </header>
+
+  <nav role="tablist">
+    <button role="tab" data-v="overview" aria-selected="true"><svg viewBox="0 0 24 24"><path d="M3 12l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Overview</button>
+    <button role="tab" data-v="budget" aria-selected="false"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10"/></svg>Budget</button>
+    <button role="tab" data-v="expenses" aria-selected="false"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>Expenses</button>
+    <button role="tab" data-v="funds" aria-selected="false"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 10.5h5M9.5 13.5h5"/></svg>Funds</button>
+  </nav>
+
+  <main>
+    <section id="v-overview" class="view on"></section>
+    <section id="v-budget" class="view"></section>
+    <section id="v-expenses" class="view"></section>
+    <section id="v-funds" class="view"></section>
+  </main>
+
+  <button class="fab" id="fab" aria-label="Add expense"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ------------------------------------------------ config */
+const API = 'PASTE_YOUR_APPS_SCRIPT_URL_HERE';
+const LS  = 'cbt.pass';
+
+let D = null;        // full dataset
+let pass = localStorage.getItem(LS) || '';
+let view = 'overview';
+
+/* ------------------------------------------------ utils */
+const $ = s => document.querySelector(s);
+const el = (t, c, h) => { const n = document.createElement(t); if (c) n.className = c; if (h != null) n.innerHTML = h; return n; };
+const esc = s => String(s ?? '').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+
+function inr(n, sign) {
+  const neg = n < 0; n = Math.abs(Math.round(n));
+  const s = n.toString();
+  let out;
+  if (s.length <= 3) out = s;
+  else { const last3 = s.slice(-3); let rest = s.slice(0, -3);
+    out = rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + last3; }
+  return (neg ? '\u2212' : (sign ? '+' : '')) + '\u20B9' + out;
+}
+function pct(a, b) { return b > 0 ? (a / b) * 100 : 0; }
+function fdate(s) {
+  if (!s) return '';
+  const d = new Date(s + 'T00:00:00');
+  if (isNaN(d)) return s;
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+function today() { return new Date().toISOString().slice(0, 10); }
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), 2200);
+}
+
+/* ------------------------------------------------ derive */
+function calc() {
+  const c = D.config;
+  const A = c.person_a, B = c.person_b;
+
+  const lines = D.budget.map(b => ({ ...b, effective: b.revised != null && b.revised !== '' ? b.revised : b.budgeted }));
+  const spentBy = {};
+  lines.forEach(l => spentBy[l.category + '\u0000' + l.subcategory] = 0);
+  D.expenses.forEach(e => {
+    const k = e.category + '\u0000' + e.subcategory;
+    spentBy[k] = (spentBy[k] || 0) + e.amount;
+  });
+  lines.forEach(l => l.spent = spentBy[l.category + '\u0000' + l.subcategory] || 0);
+
+  const cats = [];
+  lines.forEach(l => {
+    let c2 = cats.find(x => x.name === l.category);
+    if (!c2) { c2 = { name: l.category, budget: 0, spent: 0, subs: [] }; cats.push(c2); }
+    c2.budget += l.effective; c2.spent += l.spent; c2.subs.push(l);
+  });
+
+  const budget = cats.reduce((s, c2) => s + c2.budget, 0);
+  const spent  = D.expenses.reduce((s, e) => s + e.amount, 0);
+
+  const paid = { [A]: 0, [B]: 0 };
+  D.expenses.forEach(e => { if (paid[e.paidBy] !== undefined) paid[e.paidBy] += e.amount; });
+  const funds = { [A]: 0, [B]: 0 };
+  D.funds.forEach(f => { if (funds[f.person] !== undefined) funds[f.person] += f.amount; });
+
+  let recvA = 0, giveA = 0;
+  D.settlements.forEach(s => { if (s.to === A) recvA += s.amount; if (s.from === A) giveA += s.amount; });
+
+  const shareA = budget * c.split_a, shareB = budget * c.split_b;
+  const balA = paid[A] - spent * c.split_a - recvA + giveA;
+
+  return {
+    A, B, lines, cats, budget, spent,
+    remaining: budget - spent,
+    fundsTotal: funds[A] + funds[B],
+    toRaise: budget - (funds[A] + funds[B]),
+    cash: (funds[A] + funds[B]) - spent,
+    people: [
+      { name: A, funds: funds[A], paid: paid[A], share: shareA, gap: shareA - funds[A], cash: funds[A] - paid[A] + recvA - giveA, balance: balA },
+      { name: B, funds: funds[B], paid: paid[B], share: shareB, gap: shareB - funds[B], cash: funds[B] - paid[B] - recvA + giveA, balance: -balA }
+    ]
+  };
+}
+
+/* ------------------------------------------------ views */
+function render() {
+  if (!D) return;
+  $('#projName').textContent = D.config.project_name || 'Construction';
+  const m = calc();
+  $('#headSub').textContent = inr(m.spent) + ' of ' + inr(m.budget);
+  renderOverview(m); renderBudget(m); renderExpenses(m); renderFunds(m);
+  $('#fab').hidden = (view === 'budget');
+}
+
+function renderOverview(m) {
+  const v = $('#v-overview'); v.innerHTML = '';
+  const over = m.remaining < 0;
+
+  const hero = el('div', 'card');
+  hero.append(el('div', 'label', 'Remaining to spend'));
+  hero.append(el('div', 'big num' + (over ? ' neg' : ''), inr(m.remaining)));
+  hero.append(el('div', 'bar' + (over ? ' over' : ''),
+    '<i style="width:' + Math.min(100, pct(m.spent, m.budget)).toFixed(1) + '%"></i>'));
+  hero.append(el('div', 'rowline tiny muted',
+    '<span>' + inr(m.spent) + ' spent \u00b7 ' + pct(m.spent, m.budget).toFixed(1) + '%</span>' +
+    '<span>Budget ' + inr(m.budget) + '</span>'));
+  v.append(hero);
+
+  // who has paid what — the signature bar
+  const pa = m.people[0], pb = m.people[1];
+  const tot = pa.paid + pb.paid;
+  const split = el('div', 'card');
+  split.append(el('div', 'rowline',
+    '<span class="label">Who has paid</span><span class="tiny muted num">' + inr(tot) + ' out</span>'));
+  if (tot > 0) {
+    const wA = pct(pa.paid, tot), wB = 100 - wA;
+    split.append(el('div', 'split',
+      '<span class="a" style="width:' + wA.toFixed(2) + '%"></span>' +
+      '<span class="b" style="left:' + wA.toFixed(2) + '%;width:' + wB.toFixed(2) + '%"></span>' +
+      '<span class="mark"></span>'));
+    split.append(el('div', 'legend',
+      '<span><i class="sw"></i>' + esc(pa.name) + ' ' + inr(pa.paid) + '</span>' +
+      '<span><i class="sw hatch"></i>' + esc(pb.name) + ' ' + inr(pb.paid) + '</span>'));
+    const owed = pa.balance;
+    split.append(el('div', 'divider'));
+    if (Math.abs(owed) < 1) {
+      split.append(el('div', 'rowline', '<span class="label">Settled</span><span class="mid num">\u20B90</span>'));
+    } else {
+      const ower = owed > 0 ? pb.name : pa.name, owee = owed > 0 ? pa.name : pb.name;
+      split.append(el('div', 'rowline',
+        '<span class="label">' + esc(ower) + ' owes ' + esc(owee) + '</span>' +
+        '<span class="mid num">' + inr(Math.abs(owed)) + '</span>'));
+    }
+  } else {
+    split.append(el('p', 'tiny muted', 'The tick marks the 50/50 line. Add expenses to see the split.'));
+  }
+  v.append(split);
+
+  // funding
+  const f = el('div', 'card');
+  f.append(el('div', 'rowline', '<span class="label">Still to raise</span>' +
+    '<span class="tiny muted">Funds logged ' + inr(m.fundsTotal) + '</span>'));
+  f.append(el('div', 'big num' + (m.toRaise > 0 ? '' : ' '), inr(Math.max(0, m.toRaise))));
+  f.append(el('div', 'divider'));
+  const g = el('div', 'grid2');
+  m.people.forEach(p => {
+    g.append(el('div', '',
+      '<div class="label">' + esc(p.name) + '</div>' +
+      '<div class="mid num' + (p.gap > 0 ? '' : '') + '">' + inr(Math.max(0, p.gap)) + '</div>' +
+      '<div class="tiny muted">to reach ' + inr(p.share) + '</div>'));
+  });
+  f.append(g);
+  v.append(f);
+
+  // cash
+  const cash = el('div', 'card');
+  cash.append(el('div', 'rowline', '<span class="label">Cash in hand</span>' +
+    '<span class="mid num' + (m.cash < 0 ? ' neg' : '') + '">' + inr(m.cash) + '</span>'));
+  cash.append(el('div', 'divider'));
+  const g2 = el('div', 'grid2');
+  m.people.forEach(p => g2.append(el('div', '',
+    '<div class="label">' + esc(p.name) + '</div>' +
+    '<div class="mid num' + (p.cash < 0 ? ' neg' : '') + '">' + inr(p.cash) + '</div>' +
+    '<div class="tiny muted">paid out ' + inr(p.paid) + '</div>')));
+  cash.append(g2);
+  v.append(cash);
+}
+
+function renderBudget(m) {
+  const v = $('#v-budget'); v.innerHTML = '';
+  const wrap = el('div', 'cats');
+  m.cats.forEach(c => {
+    const over = c.spent > c.budget;
+    const d = el('details', 'cat');
+    const rem = c.budget - c.spent;
+    d.innerHTML =
+      '<summary>' +
+        '<div class="rowline"><strong style="letter-spacing:-.015em">' + esc(c.name) + '</strong>' +
+        '<span class="chev">\u25be</span></div>' +
+        '<div class="rowline" style="margin-top:9px">' +
+          '<span class="label">Budget</span>' +
+          '<span class="num" style="font-weight:600">' + inr(c.budget) + '</span></div>' +
+        '<div class="bar' + (over ? ' over' : '') + '"><i style="width:' +
+          Math.min(100, pct(c.spent, c.budget)).toFixed(1) + '%"></i></div>' +
+        '<div class="rowline tiny">' +
+          '<span class="muted">' + pct(c.spent, c.budget).toFixed(1) + '% used \u00b7 ' + inr(c.spent) + ' spent</span>' +
+          '<span class="num' + (rem < 0 ? ' neg' : ' muted') + '">' +
+            (rem < 0 ? inr(rem) + ' over' : inr(rem) + ' left') + '</span>' +
+        '</div>' +
+      '</summary>';
+    const subs = el('div', 'subs');
+    c.subs.forEach(s => {
+      const o = s.spent > s.effective, r = s.effective - s.spent;
+      const b = el('button', 'sub');
+      b.innerHTML =
+        '<div class="rowline"><span style="font-weight:500">' + esc(s.subcategory) + '</span>' +
+        '<span class="num tiny' + (r < 0 ? ' neg' : ' muted') + '">' +
+          (r < 0 ? inr(r) + ' over' : inr(r) + ' left') + '</span></div>' +
+        '<div class="bar' + (o ? ' over' : '') + '"><i style="width:' +
+          Math.min(100, pct(s.spent, s.effective)).toFixed(1) + '%"></i></div>' +
+        '<div class="tiny muted num">' + inr(s.spent) + ' / ' + inr(s.effective) + '</div>';
+      b.onclick = () => editBudget(s);
+      subs.append(b);
+    });
+    const add = el('button', 'sub muted tiny');
+    add.style.fontWeight = '600';
+    add.textContent = '+  Add subcategory';
+    add.onclick = () => addSub(c.name);
+    subs.append(add);
+    d.append(subs);
+    wrap.append(d);
+  });
+  v.append(wrap);
+
+  const tot = el('div', 'card');
+  tot.style.marginTop = '12px';
+  tot.append(el('div', 'rowline',
+    '<span class="label">Total budget</span><span class="mid num">' + inr(m.budget) + '</span>'));
+  tot.append(el('div', 'rowline tiny muted',
+    '<span>Half share each</span><span class="num">' + inr(m.budget / 2) + '</span>'));
+  v.append(tot);
+}
+
+function renderExpenses(m) {
+  const v = $('#v-expenses'); v.innerHTML = '';
+  if (!D.expenses.length) {
+    v.append(el('div', 'empty', '<b>No expenses yet</b>Tap + to log the first one.'));
+    return;
+  }
+  const sorted = [...D.expenses].sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.id - a.id);
+  let last = null;
+  const card = el('div', 'card');
+  sorted.forEach(e => {
+    if (e.date !== last) { last = e.date; card.append(el('div', 'daterule', fdate(e.date))); }
+    const row = el('div', 'item');
+    row.innerHTML =
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-weight:500">' + esc(e.item || e.subcategory) + '</div>' +
+        '<div class="tiny muted">' + esc(e.category) + ' \u00b7 ' + esc(e.subcategory) +
+          (e.mode ? ' \u00b7 ' + esc(e.mode) : '') + '</div>' +
+      '</div>' +
+      '<div style="text-align:right;flex:none">' +
+        '<div class="num" style="font-weight:600">' + inr(e.amount) + '</div>' +
+        '<div class="who tiny ' + (e.paidBy === m.B ? 'b' : '') + '" style="display:inline-block;margin-top:4px">' +
+          esc(e.paidBy) + '</div>' +
+      '</div>';
+    row.onclick = () => confirmDelete(e);
+    card.append(row);
+  });
+  v.append(card);
+}
+
+function renderFunds(m) {
+  const v = $('#v-funds'); v.innerHTML = '';
+
+  const head = el('div', 'card');
+  const g = el('div', 'grid2');
+  m.people.forEach(p => g.append(el('div', '',
+    '<div class="label">' + esc(p.name) + '</div>' +
+    '<div class="mid num">' + inr(p.funds) + '</div>' +
+    '<div class="tiny muted">' + (p.gap > 0 ? inr(p.gap) + ' to go' : 'fully funded') + '</div>')));
+  head.append(g);
+  head.append(el('div', 'divider'));
+  const row = el('div', 'seg');
+  const bf = el('button', '', 'Log funds'); bf.onclick = () => addFund();
+  const bs = el('button', '', 'Record settlement'); bs.onclick = () => addSettlement(m);
+  row.append(bf, bs); head.append(row);
+  v.append(head);
+
+  if (D.funds.length) {
+    const c = el('div', 'card');
+    c.append(el('div', 'label', 'Funds log'));
+    [...D.funds].reverse().forEach(f => c.append(el('div', 'item',
+      '<div style="flex:1"><div style="font-weight:500">' + esc(f.person) + '</div>' +
+      '<div class="tiny muted">' + fdate(f.date) + (f.note ? ' \u00b7 ' + esc(f.note) : '') + '</div></div>' +
+      '<div class="num" style="font-weight:600">' + inr(f.amount) + '</div>')));
+    v.append(c);
+  } else {
+    v.append(el('div', 'empty', '<b>No funds logged</b>Record what each of you has set aside.'));
+  }
+
+  if (D.settlements.length) {
+    const c = el('div', 'card');
+    c.append(el('div', 'label', 'Settlements'));
+    [...D.settlements].reverse().forEach(s => c.append(el('div', 'item',
+      '<div style="flex:1"><div style="font-weight:500">' + esc(s.from) + ' \u2192 ' + esc(s.to) + '</div>' +
+      '<div class="tiny muted">' + fdate(s.date) + (s.mode ? ' \u00b7 ' + esc(s.mode) : '') + '</div></div>' +
+      '<div class="num" style="font-weight:600">' + inr(s.amount) + '</div>')));
+    v.append(c);
+  }
+}
+
+/* ------------------------------------------------ sheets */
+function openSheet(html) {
+  $('#sheet').innerHTML = html;
+  $('#sheet').classList.add('on'); $('#scrim').classList.add('on');
+}
+function closeSheet() { $('#sheet').classList.remove('on'); $('#scrim').classList.remove('on'); }
+$('#scrim').onclick = closeSheet;
+
+function catOptions(sel) {
+  const names = [...new Set(D.budget.map(b => b.category))];
+  return names.map(n => '<option' + (n === sel ? ' selected' : '') + '>' + esc(n) + '</option>').join('');
+}
+function subOptions(cat, sel) {
+  return D.budget.filter(b => b.category === cat)
+    .map(b => '<option' + (b.subcategory === sel ? ' selected' : '') + '>' + esc(b.subcategory) + '</option>').join('');
+}
+
+function addExpense() {
+  const A = D.config.person_a, B = D.config.person_b;
+  const first = D.budget[0] || { category: '', subcategory: '' };
+  openSheet(
+    '<h2>Add expense</h2>' +
+    '<div class="field"><label>Amount</label><input id="f-amt" type="number" inputmode="decimal" placeholder="0"></div>' +
+    '<div class="field"><label>Category</label><select id="f-cat">' + catOptions(first.category) + '</select></div>' +
+    '<div class="field"><label>Subcategory</label><select id="f-sub">' + subOptions(first.category) + '</select></div>' +
+    '<div class="field"><label>Paid by</label><div class="seg" id="f-who">' +
+      '<button data-p="' + esc(A) + '" aria-pressed="true">' + esc(A) + '</button>' +
+      '<button data-p="' + esc(B) + '" aria-pressed="false">' + esc(B) + '</button></div></div>' +
+    '<div class="field"><label>What was it for</label><input id="f-item" placeholder="Optional"></div>' +
+    '<div class="field"><label>Date</label><input id="f-date" type="date" value="' + today() + '"></div>' +
+    '<details><summary class="label" style="padding:6px 0;cursor:pointer">More</summary>' +
+      '<div class="field"><label>Mode</label><select id="f-mode">' +
+        ['UPI','Bank transfer','Cash','Cheque','Card'].map(x => '<option>' + x + '</option>').join('') + '</select></div>' +
+      '<div class="field"><label>Bill reference</label><input id="f-bill" placeholder="Optional"></div>' +
+      '<div class="field"><label>Note</label><input id="f-note" placeholder="Optional"></div>' +
+    '</details>' +
+    '<button class="btn" id="f-save">Save expense</button>' +
+    '<button class="btn ghost" onclick="closeSheet()">Cancel</button>');
+
+  $('#f-cat').onchange = e => { $('#f-sub').innerHTML = subOptions(e.target.value); };
+  $('#f-who').onclick = e => {
+    const b = e.target.closest('button'); if (!b) return;
+    [...$('#f-who').children].forEach(x => x.setAttribute('aria-pressed', x === b));
+  };
+  $('#f-amt').focus();
+  $('#f-save').onclick = async () => {
+    const amt = parseFloat($('#f-amt').value);
+    if (!amt || amt <= 0) return toast('Enter an amount');
+    const who = $('#f-who').querySelector('[aria-pressed=true]').dataset.p;
+    await send('addExpense', {
+      date: $('#f-date').value, amount: amt,
+      category: $('#f-cat').value, subcategory: $('#f-sub').value,
+      item: $('#f-item').value, paidBy: who,
+      mode: $('#f-mode') ? $('#f-mode').value : '',
+      billRef: $('#f-bill') ? $('#f-bill').value : '',
+      note: $('#f-note') ? $('#f-note').value : ''
+    }, 'Expense saved');
+  };
+}
+
+function addFund() {
+  const A = D.config.person_a, B = D.config.person_b;
+  openSheet(
+    '<h2>Log funds</h2>' +
+    '<p class="tiny muted" style="margin:-8px 0 14px">Money set aside for the build. Not a payment to the other person.</p>' +
+    '<div class="field"><label>Amount</label><input id="g-amt" type="number" inputmode="decimal"></div>' +
+    '<div class="field"><label>Person</label><div class="seg" id="g-who">' +
+      '<button data-p="' + esc(A) + '" aria-pressed="true">' + esc(A) + '</button>' +
+      '<button data-p="' + esc(B) + '" aria-pressed="false">' + esc(B) + '</button></div></div>' +
+    '<div class="field"><label>Date</label><input id="g-date" type="date" value="' + today() + '"></div>' +
+    '<div class="field"><label>Note</label><input id="g-note" placeholder="Optional"></div>' +
+    '<button class="btn" id="g-save">Save</button>' +
+    '<button class="btn ghost" onclick="closeSheet()">Cancel</button>');
+  $('#g-who').onclick = e => { const b = e.target.closest('button'); if (!b) return;
+    [...$('#g-who').children].forEach(x => x.setAttribute('aria-pressed', x === b)); };
+  $('#g-save').onclick = async () => {
+    const amt = parseFloat($('#g-amt').value);
+    if (!amt || amt <= 0) return toast('Enter an amount');
+    await send('addFund', { date: $('#g-date').value, amount: amt,
+      person: $('#g-who').querySelector('[aria-pressed=true]').dataset.p,
+      note: $('#g-note').value }, 'Funds logged');
+  };
+}
+
+function addSettlement(m) {
+  const owed = m.people[0].balance;
+  const from = owed > 0 ? m.people[1].name : m.people[0].name;
+  const to   = owed > 0 ? m.people[0].name : m.people[1].name;
+  openSheet(
+    '<h2>Record settlement</h2>' +
+    '<p class="tiny muted" style="margin:-8px 0 14px">One of you paying the other back. This squares the balance and does not change the project total.</p>' +
+    '<div class="field"><label>Amount</label><input id="s-amt" type="number" inputmode="decimal" value="' +
+      (Math.abs(owed) > 1 ? Math.round(Math.abs(owed)) : '') + '"></div>' +
+    '<div class="field"><label>From</label><select id="s-from">' +
+      m.people.map(p => '<option' + (p.name === from ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('') + '</select></div>' +
+    '<div class="field"><label>To</label><select id="s-to">' +
+      m.people.map(p => '<option' + (p.name === to ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('') + '</select></div>' +
+    '<div class="field"><label>Date</label><input id="s-date" type="date" value="' + today() + '"></div>' +
+    '<button class="btn" id="s-save">Save</button>' +
+    '<button class="btn ghost" onclick="closeSheet()">Cancel</button>');
+  $('#s-save').onclick = async () => {
+    const amt = parseFloat($('#s-amt').value);
+    if (!amt || amt <= 0) return toast('Enter an amount');
+    if ($('#s-from').value === $('#s-to').value) return toast('Pick two different people');
+    await send('addSettlement', { date: $('#s-date').value, amount: amt,
+      from: $('#s-from').value, to: $('#s-to').value, mode: '' }, 'Settlement recorded');
+  };
+}
+
+function editBudget(line) {
+  openSheet(
+    '<h2>' + esc(line.subcategory) + '</h2>' +
+    '<p class="tiny muted" style="margin:-8px 0 14px">' + esc(line.category) + '</p>' +
+    '<div class="field"><label>Budgeted</label><input id="b-amt" type="number" value="' + line.budgeted + '"></div>' +
+    '<div class="field"><label>Revised (leave blank to keep the original)</label>' +
+      '<input id="b-rev" type="number" value="' + (line.revised ?? '') + '"></div>' +
+    '<button class="btn" id="b-save">Save</button>' +
+    '<button class="btn ghost" onclick="closeSheet()">Cancel</button>');
+  $('#b-save').onclick = async () => {
+    await send('setBudget', { category: line.category, subcategory: line.subcategory,
+      budgeted: parseFloat($('#b-amt').value) || 0,
+      revised: $('#b-rev').value === '' ? null : parseFloat($('#b-rev').value) }, 'Budget updated');
+  };
+}
+
+function addSub(cat) {
+  openSheet(
+    '<h2>New subcategory</h2>' +
+    '<p class="tiny muted" style="margin:-8px 0 14px">' + esc(cat) + '</p>' +
+    '<div class="field"><label>Name</label><input id="n-name" placeholder="e.g. Waterproofing"></div>' +
+    '<div class="field"><label>Budget</label><input id="n-amt" type="number" inputmode="decimal"></div>' +
+    '<button class="btn" id="n-save">Add</button>' +
+    '<button class="btn ghost" onclick="closeSheet()">Cancel</button>');
+  $('#n-save').onclick = async () => {
+    const name = $('#n-name').value.trim();
+    if (!name) return toast('Give it a name');
+    await send('addSubcategory', { category: cat, subcategory: name,
+      budgeted: parseFloat($('#n-amt').value) || 0 }, 'Subcategory added');
+  };
+}
+
+function confirmDelete(e) {
+  openSheet(
+    '<h2>' + esc(e.item || e.subcategory) + '</h2>' +
+    '<p class="label" style="margin:-8px 0 16px">' + inr(e.amount) + ' \u00b7 ' + esc(e.category) +
+      ' \u00b7 ' + esc(e.subcategory) + ' \u00b7 paid by ' + esc(e.paidBy) + ' \u00b7 ' + fdate(e.date) + '</p>' +
+    '<button class="btn" style="background:var(--over)" id="d-del">Delete this expense</button>' +
+    '<button class="btn ghost" onclick="closeSheet()">Keep it</button>');
+  $('#d-del').onclick = async () => { await send('deleteExpense', { id: e.id }, 'Deleted'); };
+}
+
+/* ------------------------------------------------ network */
+async function load() {
+  const r = await fetch(API + '?passcode=' + encodeURIComponent(pass) + '&t=' + Date.now());
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error);
+  D = j.data; render();
+}
+
+async function send(action, payload, okMsg, force) {
+  const btn = $('#sheet').querySelector('.btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving\u2026'; }
+  try {
+    const r = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ passcode: pass, action, payload, force: !!force })
+    });
+    const j = await r.json();
+    if (!j.ok && j.error === 'duplicate') {
+      if (confirm('An identical entry already exists. Add it anyway?')) return send(action, payload, okMsg, true);
+      closeSheet(); return;
+    }
+    if (!j.ok) throw new Error(j.error);
+    D = j.data; render(); closeSheet(); toast(okMsg);
+  } catch (err) {
+    toast('Could not save. Try again.');
+    if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+  }
+}
+
+/* ------------------------------------------------ boot */
+document.querySelectorAll('nav button').forEach(b => {
+  b.onclick = () => {
+    view = b.dataset.v;
+    document.querySelectorAll('nav button').forEach(x => x.setAttribute('aria-selected', x === b));
+    document.querySelectorAll('.view').forEach(x => x.classList.toggle('on', x.id === 'v-' + view));
+    $('#fab').hidden = (view === 'budget');
+    window.scrollTo(0, 0);
+  };
+});
+$('#fab').onclick = addExpense;
+
+$('#unlock').onclick = async () => {
+  pass = $('#pass').value.trim();
+  if (!pass) return;
+  $('#unlock').textContent = 'Checking\u2026';
+  try {
+    await load();
+    localStorage.setItem(LS, pass);
+    $('#gate').hidden = true; $('#app').hidden = false;
+  } catch (err) {
+    $('#gateErr').textContent = 'That passcode did not work.';
+    $('#gateErr').style.display = 'block';
+    $('#unlock').textContent = 'Open';
+  }
+};
+$('#pass').addEventListener('keydown', e => { if (e.key === 'Enter') $('#unlock').click(); });
+
+(async function () {
+  if (!pass) return;
+  try {
+    await load();
+    $('#gate').hidden = true; $('#app').hidden = false;
+  } catch (err) { localStorage.removeItem(LS); }
+})();
+</script>
+</body>
+</html>
