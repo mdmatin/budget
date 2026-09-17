@@ -312,7 +312,7 @@ function calc() {
   const c = D.config;
   const A = c.person_a, B = c.person_b;
 
-  const lines = D.budget.map(b => ({ ...b, effective: b.revised != null && b.revised !== '' ? b.revised : b.budgeted }));
+  const lines = D.budget.map(b => ({ ...b, effective: b.budgeted }));
   const spentBy = {};
   lines.forEach(l => spentBy[l.category + '\u0000' + l.subcategory] = 0);
   D.expenses.forEach(e => {
@@ -676,15 +676,12 @@ function editBudget(line) {
   openSheet(
     '<h2>' + esc(line.subcategory) + '</h2>' +
     '<p class="tiny muted" style="margin:-8px 0 14px">' + esc(line.category) + '</p>' +
-    '<div class="field"><label>Budgeted</label><input id="b-amt" type="number" value="' + line.budgeted + '"></div>' +
-    '<div class="field"><label>Revised (leave blank to keep the original)</label>' +
-      '<input id="b-rev" type="number" value="' + (line.revised ?? '') + '"></div>' +
+    '<div class="field"><label>Budget</label><input id="b-amt" type="number" inputmode="decimal" value="' + line.budgeted + '"></div>' +
     '<button class="btn" id="b-save">Save</button>' +
     '<button class="btn ghost" onclick="closeSheet()">Cancel</button>');
   $('#b-save').onclick = async () => {
     await send('setBudget', { category: line.category, subcategory: line.subcategory,
-      budgeted: parseFloat($('#b-amt').value) || 0,
-      revised: $('#b-rev').value === '' ? null : parseFloat($('#b-rev').value) }, 'Budget updated');
+      budgeted: parseFloat($('#b-amt').value) || 0 }, 'Budget updated');
   };
 }
 
