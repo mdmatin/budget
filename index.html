@@ -269,8 +269,9 @@ nav button[aria-selected=true]{color:var(--blue)}
 <script src="config.js"></script>
 <script>
 /* ------------------------------------------------ config */
-const LS     = 'cbt.pass';
-const LS_API = 'cbt.api';
+const LS      = 'cbt.pass';
+const LS_API  = 'cbt.api';
+const LS_DATA = 'cbt.data';   // last dataset, so the app opens instantly offline
 
 /* The endpoint comes from config.js. If that is blank — a fresh device, or a
    copy of the app without it — the gate asks for it and remembers it here. */
@@ -712,6 +713,13 @@ function confirmDelete(e) {
 }
 
 /* ------------------------------------------------ network */
+function cacheData(d) {
+  try { localStorage.setItem(LS_DATA, JSON.stringify(d)); } catch (e) { /* storage full or blocked — fine */ }
+}
+function cachedData() {
+  try { const s = localStorage.getItem(LS_DATA); return s ? JSON.parse(s) : null; } catch (e) { return null; }
+}
+
 async function load() {
   let j;
   try {
@@ -725,7 +733,7 @@ async function load() {
     err.kind = (j.error === 'bad_passcode') ? 'auth' : 'server';
     throw err;
   }
-  D = j.data; render();
+  D = j.data; cacheData(D); render();
 }
 
 async function send(action, payload, okMsg, force) {
@@ -743,7 +751,7 @@ async function send(action, payload, okMsg, force) {
       closeSheet(); return;
     }
     if (!j.ok) throw new Error(j.error);
-    D = j.data; render(); closeSheet(); toast(okMsg);
+    D = j.data; cacheData(D); render(); closeSheet(); toast(okMsg);
   } catch (err) {
     toast('Could not save. Try again.');
     if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
@@ -803,7 +811,27 @@ function showGate(msg, keepPass) {
 (async function boot() {
   if (!pass || !API) { showGate(); return; }
 
-  // we have credentials — show a quiet opening state, not the passcode form
+  // Credentials plus a cached dataset: open straight into the app on the saved
+  // data and refresh quietly in the background. No spinner, no waiting.
+  const cached = cachedData();
+  if (cached) {
+    D = cached; render();
+    $('#gate').hidden = true; $('#app').hidden = false;
+    load().catch(err => {
+      if (err.kind === 'auth') {
+        // stored passcode is wrong — the cached data is no longer ours to show
+        localStorage.removeItem(LS); localStorage.removeItem(LS_DATA); pass = ''; D = null;
+        $('#app').hidden = true;
+        $('#gateMsg').textContent = 'Enter the passcode to open the tracker.';
+        showGate('Your saved passcode no longer works.');
+      } else {
+        toast('Showing saved data — could not refresh.');
+      }
+    });
+    return;
+  }
+
+  // first run on this device — nothing cached, so show a quiet opening state
   $('#gate').hidden = false;
   $('#gateMsg').textContent = 'Opening\u2026';
   $('#pass').closest('.field').hidden = true;
