@@ -512,9 +512,9 @@ function renderExpenses(m) {
     const row = el('div', 'item');
     row.innerHTML =
       '<div style="flex:1;min-width:0">' +
-        '<div class="body-strong">' + esc(e.item || e.subcategory) + '</div>' +
-        '<div class="tiny muted">' + esc(e.category) + ' \u00b7 ' + esc(e.subcategory) +
-          (e.mode ? ' \u00b7 ' + esc(e.mode) : '') + '</div>' +
+        '<div class="body-strong">' + esc(e.note || e.subcategory || e.category) + '</div>' +
+        '<div class="tiny muted">' + esc(e.category) + (e.subcategory ? ' \u00b7 ' + esc(e.subcategory) : '') +
+          (e.account ? ' \u00b7 ' + esc(e.account) : '') + '</div>' +
       '</div>' +
       '<div style="text-align:right;flex:none">' +
         '<div class="num body-strong">' + inr(e.amount) + '</div>' +
@@ -584,25 +584,29 @@ function subOptions(cat, sel) {
     .map(b => '<option' + (b.subcategory === sel ? ' selected' : '') + '>' + esc(b.subcategory) + '</option>').join('');
 }
 
+function accountList() {
+  const a = D.config.accounts;
+  return Array.isArray(a) ? a : String(a || '').split(',').map(s => s.trim()).filter(Boolean);
+}
+
 function addExpense() {
   const A = D.config.person_a, B = D.config.person_b;
   const first = D.budget[0] || { category: '', subcategory: '' };
+  const accts = accountList();
+  let lastAcct = ''; try { lastAcct = localStorage.getItem('ct_last_account') || ''; } catch (e) {}
   openSheet(
     '<h2>Add expense</h2>' +
-    '<div class="field"><label>Amount</label><input id="f-amt" type="number" inputmode="decimal" placeholder="0"></div>' +
+    '<div class="field"><label>Date</label><input id="f-date" type="date" value="' + today() + '"></div>' +
+    '<div class="field"><label>Account</label><select id="f-acct">' +
+      (accts.length ? accts.map(x => '<option' + (x === lastAcct ? ' selected' : '') + '>' + esc(x) + '</option>').join('')
+                    : '<option value="">No accounts set in Config</option>') + '</select></div>' +
     '<div class="field"><label>Category</label><select id="f-cat">' + catOptions(first.category) + '</select></div>' +
     '<div class="field"><label>Subcategory</label><select id="f-sub">' + subOptions(first.category) + '</select></div>' +
+    '<div class="field"><label>Note</label><input id="f-note" placeholder="What was it for"></div>' +
+    '<div class="field"><label>Amount (INR)</label><input id="f-amt" type="number" inputmode="decimal" placeholder="0"></div>' +
     '<div class="field"><label>Paid by</label><div class="seg" id="f-who">' +
       '<button data-p="' + esc(A) + '" aria-pressed="true">' + esc(A) + '</button>' +
       '<button data-p="' + esc(B) + '" aria-pressed="false">' + esc(B) + '</button></div></div>' +
-    '<div class="field"><label>What was it for</label><input id="f-item" placeholder="Optional"></div>' +
-    '<div class="field"><label>Date</label><input id="f-date" type="date" value="' + today() + '"></div>' +
-    '<details><summary class="label" style="padding:6px 0;cursor:pointer">More</summary>' +
-      '<div class="field"><label>Mode</label><select id="f-mode">' +
-        ['UPI','Bank transfer','Cash','Cheque','Card'].map(x => '<option>' + x + '</option>').join('') + '</select></div>' +
-      '<div class="field"><label>Bill reference</label><input id="f-bill" placeholder="Optional"></div>' +
-      '<div class="field"><label>Note</label><input id="f-note" placeholder="Optional"></div>' +
-    '</details>' +
     '<button class="btn" id="f-save">Save expense</button>' +
     '<button class="btn ghost" onclick="closeSheet()">Cancel</button>');
 
@@ -616,13 +620,12 @@ function addExpense() {
     const amt = parseFloat($('#f-amt').value);
     if (!amt || amt <= 0) return toast('Enter an amount');
     const who = $('#f-who').querySelector('[aria-pressed=true]').dataset.p;
+    const account = $('#f-acct').value;
+    try { if (account) localStorage.setItem('ct_last_account', account); } catch (e) {}
     await send('addExpense', {
-      date: $('#f-date').value, amount: amt,
+      date: $('#f-date').value, account: account,
       category: $('#f-cat').value, subcategory: $('#f-sub').value,
-      item: $('#f-item').value, paidBy: who,
-      mode: $('#f-mode') ? $('#f-mode').value : '',
-      billRef: $('#f-bill') ? $('#f-bill').value : '',
-      note: $('#f-note') ? $('#f-note').value : ''
+      note: $('#f-note').value, amount: amt, paidBy: who
     }, 'Expense saved');
   };
 }
@@ -707,9 +710,10 @@ function addSub(cat) {
 
 function confirmDelete(e) {
   openSheet(
-    '<h2>' + esc(e.item || e.subcategory) + '</h2>' +
+    '<h2>' + esc(e.note || e.subcategory || e.category) + '</h2>' +
     '<p class="label" style="margin:-8px 0 16px">' + inr(e.amount) + ' \u00b7 ' + esc(e.category) +
-      ' \u00b7 ' + esc(e.subcategory) + ' \u00b7 paid by ' + esc(e.paidBy) + ' \u00b7 ' + fdate(e.date) + '</p>' +
+      (e.subcategory ? ' \u00b7 ' + esc(e.subcategory) : '') + (e.account ? ' \u00b7 ' + esc(e.account) : '') +
+      ' \u00b7 paid by ' + esc(e.paidBy) + ' \u00b7 ' + fdate(e.date) + '</p>' +
     '<button class="btn" style="background:var(--over)" id="d-del">Delete expense</button>' +
     '<button class="btn ghost" onclick="closeSheet()">Keep it</button>');
   $('#d-del').onclick = async () => { await send('deleteExpense', { id: e.id }, 'Deleted'); };
