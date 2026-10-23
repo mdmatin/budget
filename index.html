@@ -94,8 +94,27 @@ header{
   background:rgba(245,245,247,.8);backdrop-filter:saturate(180%) blur(20px);
   -webkit-backdrop-filter:saturate(180%) blur(20px);
   padding:calc(env(safe-area-inset-top) + 12px) var(--s-md) 12px;
-  display:flex;align-items:baseline;justify-content:space-between;gap:var(--s-sm);
+  display:flex;align-items:center;justify-content:space-between;gap:var(--s-sm);
 }
+header .head-l{flex:1;min-width:0;display:flex;align-items:baseline;justify-content:space-between;gap:var(--s-sm)}
+.avatar{flex:none;width:32px;height:32px;border-radius:50%;background:var(--chip);color:var(--ink);
+  font-family:var(--sf-display);font-size:15px;font-weight:600;letter-spacing:0;
+  display:flex;align-items:center;justify-content:center}
+.ptr{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 64px);z-index:15;
+  width:36px;height:36px;border-radius:50%;background:var(--white);border:1px solid var(--hairline);
+  box-shadow:0 2px 10px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;
+  transform:translate(-50%,-60px);opacity:0;pointer-events:none}
+.ptr.settle{transition:transform .25s ease,opacity .25s ease}
+.ptr svg{width:18px;height:18px;fill:none;stroke:var(--ink-48);stroke-width:2.2;stroke-linecap:round}
+.ptr.ready svg{stroke:var(--blue)}
+.ptr.spin svg{stroke:var(--blue);animation:ptrspin .8s linear infinite}
+@keyframes ptrspin{to{transform:rotate(360deg)}}
+.kv{display:flex;justify-content:space-between;gap:var(--s-sm);padding:10px 0;
+  border-bottom:1px solid var(--divider);font-size:15px;letter-spacing:-.24px}
+.kv:last-child{border-bottom:0}
+.kv span:first-child{color:var(--ink-48)}
+.kv span:last-child{text-align:right;font-variant-numeric:tabular-nums;min-width:0;overflow-wrap:anywhere}
+.notes{margin:6px 0 0;padding-left:18px;font-size:14px;color:var(--ink-80);letter-spacing:-.224px}
 header h1{margin:0;font-family:var(--sf-display);font-size:21px;font-weight:600;
   line-height:1.19;letter-spacing:.231px}
 header .sub{font-size:14px;font-weight:400;letter-spacing:-.224px;color:var(--ink-48);
@@ -244,9 +263,13 @@ nav button[aria-selected=true]{color:var(--blue)}
 
 <div id="app" hidden>
   <header>
-    <h1 id="projName">Construction</h1>
-    <span class="sub" id="headSub"></span>
+    <div class="head-l">
+      <h1 id="projName">Construction</h1>
+      <span class="sub" id="headSub"></span>
+    </div>
+    <button class="avatar" id="profileBtn" aria-label="Profile and build info">M</button>
   </header>
+  <div class="ptr" id="ptr" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg></div>
 
   <nav role="tablist">
     <button role="tab" data-v="overview" aria-selected="true"><svg viewBox="0 0 24 24"><path d="M3 12l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Overview</button>
@@ -275,6 +298,19 @@ nav button[aria-selected=true]{color:var(--blue)}
 const LS      = 'cbt.pass';
 const LS_API  = 'cbt.api';
 const LS_DATA = 'cbt.data';   // last dataset, so the app opens instantly offline
+const LS_SYNC = 'cbt.synced'; // when the data was last fetched from the sheet
+
+/* Build info — bump on every release so the profile sheet shows what is live. */
+const BUILD = {
+  version: '1.2.0',
+  date: '23 Oct 2026',
+  notes: [
+    'Expenses: Date, Account, Category, Subcategory, Note, INR, Paid by',
+    'Dates shown as dd/mm/yyyy',
+    'Pull down to refresh',
+    'Profile menu with build info'
+  ]
+};
 
 /* The endpoint comes from config.js. If that is blank — a fresh device, or a
    copy of the app without it — the gate asks for it and remembers it here. */
@@ -303,7 +339,7 @@ function fdate(s) {
   if (!s) return '';
   const d = new Date(s + 'T00:00:00');
   if (isNaN(d)) return s;
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
 }
 function today() { return new Date().toISOString().slice(0, 10); }
 function toast(msg) {
@@ -363,6 +399,7 @@ function calc() {
 function render() {
   if (!D) return;
   $('#projName').textContent = D.config.project_name || 'Construction';
+  $('#profileBtn').textContent = String(D.config.person_a || 'M').trim().charAt(0).toUpperCase();
   const m = calc();
   $('#headSub').textContent = inr(m.spent) + ' of ' + inr(m.budget);
   renderOverview(m); renderBudget(m); renderExpenses(m); renderFunds(m);
@@ -740,7 +777,7 @@ async function load() {
     err.kind = (j.error === 'bad_passcode') ? 'auth' : 'server';
     throw err;
   }
-  D = j.data; cacheData(D); render();
+  D = j.data; cacheData(D); markSynced(); render();
 }
 
 async function send(action, payload, okMsg, force) {
@@ -758,12 +795,102 @@ async function send(action, payload, okMsg, force) {
       closeSheet(); return;
     }
     if (!j.ok) throw new Error(j.error);
-    D = j.data; cacheData(D); render(); closeSheet(); toast(okMsg);
+    D = j.data; cacheData(D); markSynced(); render(); closeSheet(); toast(okMsg);
   } catch (err) {
     toast('Could not save. Try again.');
     if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
   }
 }
+
+/* ------------------------------------------------ sync, profile, pull to refresh */
+function markSynced() { try { localStorage.setItem(LS_SYNC, String(Date.now())); } catch (e) {} }
+function syncedText() {
+  let t = 0; try { t = +localStorage.getItem(LS_SYNC) || 0; } catch (e) {}
+  if (!t) return 'Not yet';
+  const d = new Date(t), mins = Math.round((Date.now() - t) / 60000);
+  const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  const ago = mins < 1 ? 'just now' : mins < 60 ? mins + ' min ago' : '';
+  return fdate(d.toISOString().slice(0, 10)) + ' ' + hm + (ago ? ' · ' + ago : '');
+}
+
+async function refreshNow() {
+  try { await load(); toast('Up to date'); return true; }
+  catch (err) { toast(err.kind === 'auth' ? 'Passcode no longer works' : 'Could not refresh'); return false; }
+}
+
+const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+function openProfile() {
+  const c = (D && D.config) || {};
+  const kv = (k, v) => '<div class="kv"><span>' + esc(k) + '</span><span>' + v + '</span></div>';
+  const api = (API.match(/\/s\/([^/]+)\/exec/) || [])[1] || '';
+  openSheet(
+    '<h2>Profile</h2>' +
+    '<div class="card" style="padding:4px 16px;margin-bottom:16px">' +
+      kv('Project', esc(c.project_name || 'Construction')) +
+      kv('Funders', esc([c.person_a, c.person_b].filter(Boolean).join(' & '))) +
+      kv('Split', Math.round((c.split_a || .5) * 100) + ' / ' + Math.round((c.split_b || .5) * 100)) +
+      kv('Last synced', '<span id="p-sync">' + esc(syncedText()) + '</span>') +
+    '</div>' +
+    '<p class="label" style="margin:0 0 6px 4px">Build</p>' +
+    '<div class="card" style="padding:4px 16px;margin-bottom:8px">' +
+      kv('Version', esc(BUILD.version)) +
+      kv('Released', esc(BUILD.date)) +
+      kv('Backend', api ? '…' + esc(api.slice(-8)) : 'Not set') +
+      kv('Records', D ? (plural(D.expenses.length, 'expense') + ' · ' + plural(D.funds.length, 'fund')) : '—') +
+      '<div class="kv" style="display:block"><span>What’s new</span><ul class="notes">' +
+        BUILD.notes.map(n => '<li>' + esc(n) + '</li>').join('') + '</ul></div>' +
+    '</div>' +
+    '<button class="btn" id="p-refresh">Refresh now</button>' +
+    '<button class="btn ghost" id="p-lock">Lock app</button>' +
+    '<button class="btn ghost" onclick="closeSheet()">Close</button>');
+  $('#p-refresh').onclick = async () => {
+    const b = $('#p-refresh'); b.disabled = true; b.textContent = 'Refreshing…';
+    await refreshNow();
+    b.disabled = false; b.textContent = 'Refresh now';
+    const s = $('#p-sync'); if (s) s.textContent = syncedText();
+  };
+  $('#p-lock').onclick = () => {
+    if (!confirm('Lock the app? You will need the passcode to open it again.')) return;
+    try { localStorage.removeItem(LS); localStorage.removeItem(LS_DATA); localStorage.removeItem(LS_SYNC); } catch (e) {}
+    location.reload();
+  };
+}
+$('#profileBtn').onclick = openProfile;
+
+/* Pull down from the top of any tab to re-fetch the sheet. */
+(function pullToRefresh() {
+  const ind = $('#ptr'), icon = ind.querySelector('svg'), TH = 64, MAX = 96;
+  let y0 = null, x0 = 0, d = 0, busy = false;
+  const blocked = () => busy || $('#app').hidden || $('#sheet').classList.contains('on');
+  const set = v => {
+    ind.style.transform = 'translate(-50%,' + (v - 60) + 'px)';
+    ind.style.opacity = Math.min(1, v / TH);
+    if (!ind.classList.contains('spin')) icon.style.transform = 'rotate(' + (v / TH) * 270 + 'deg)';
+    ind.classList.toggle('ready', v >= TH);
+  };
+  window.addEventListener('touchstart', e => {
+    if (blocked() || window.scrollY > 0 || e.touches.length !== 1) { y0 = null; return; }
+    y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; d = 0;
+    ind.classList.remove('settle');
+  }, { passive: true });
+  window.addEventListener('touchmove', e => {
+    if (y0 === null) return;
+    const dy = e.touches[0].clientY - y0, dx = Math.abs(e.touches[0].clientX - x0);
+    if (dy <= 0 || window.scrollY > 0 || dx > dy) { d = 0; set(0); return; }
+    d = Math.min(MAX, dy * 0.5); set(d);
+  }, { passive: true });
+  const end = async () => {
+    if (y0 === null) return;
+    y0 = null; ind.classList.add('settle');
+    if (d < TH) { set(0); return; }
+    busy = true; set(TH); icon.style.transform = ''; ind.classList.add('spin');
+    if (navigator.vibrate) navigator.vibrate(8);
+    await refreshNow();
+    ind.classList.remove('spin'); set(0); busy = false;
+  };
+  window.addEventListener('touchend', end, { passive: true });
+  window.addEventListener('touchcancel', end, { passive: true });
+})();
 
 /* ------------------------------------------------ boot */
 document.querySelectorAll('nav button').forEach(b => {
