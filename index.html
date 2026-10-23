@@ -302,9 +302,10 @@ const LS_SYNC = 'cbt.synced'; // when the data was last fetched from the sheet
 
 /* Build info — bump on every release so the profile sheet shows what is live. */
 const BUILD = {
-  version: '1.2.0',
-  date: '23 Oct 2026',
+  version: '1.3.0',
+  date: '24 Oct 2026',
   notes: [
+    'Tap an expense to edit it (delete is inside the edit screen)',
     'Expenses: Date, Account, Category, Subcategory, Note, INR, Paid by',
     'Dates shown as dd/mm/yyyy',
     'Pull down to refresh',
@@ -558,7 +559,7 @@ function renderExpenses(m) {
         '<div class="who tiny ' + (e.paidBy === m.B ? 'b' : '') + '" style="display:inline-block;margin-top:4px">' +
           esc(e.paidBy) + '</div>' +
       '</div>';
-    row.onclick = () => confirmDelete(e);
+    row.onclick = () => editExpense(e);
     card.append(row);
   });
   v.append(card);
@@ -626,45 +627,71 @@ function accountList() {
   return Array.isArray(a) ? a : String(a || '').split(',').map(s => s.trim()).filter(Boolean);
 }
 
-function addExpense() {
+function addExpense() { expenseForm(null); }
+function editExpense(e) { expenseForm(e); }
+
+/* One form for add and edit. `e` is the expense being edited, or null for a new one. */
+function expenseForm(e) {
   const A = D.config.person_a, B = D.config.person_b;
+  const edit = !!e;
   const first = D.budget[0] || { category: '', subcategory: '' };
-  const accts = accountList();
-  let lastAcct = ''; try { lastAcct = localStorage.getItem('ct_last_account') || ''; } catch (e) {}
+  const cat = edit ? e.category : first.category;
+  let accts = accountList();
+  let acct = '';
+  if (edit) acct = e.account || '';
+  else { try { acct = localStorage.getItem('ct_last_account') || ''; } catch (x) {} }
+  if (acct && accts.indexOf(acct) === -1) accts = [acct].concat(accts);   // keep an old value selectable
+  const who = edit ? e.paidBy : A;
+  const subs = (c, sel) => {
+    let h = subOptions(c, sel);
+    if (sel && h.indexOf('>' + esc(sel) + '<') === -1) h = '<option selected>' + esc(sel) + '</option>' + h;
+    return h + '<option value=""' + (edit && !sel ? ' selected' : '') + '>None</option>';
+  };
+  let cats = catOptions(cat);
+  if (cat && cats.indexOf('>' + esc(cat) + '<') === -1) cats = '<option selected>' + esc(cat) + '</option>' + cats;
+
   openSheet(
-    '<h2>Add expense</h2>' +
-    '<div class="field"><label>Date</label><input id="f-date" type="date" value="' + today() + '"></div>' +
+    '<h2>' + (edit ? 'Edit expense' : 'Add expense') + '</h2>' +
+    '<div class="field"><label>Date</label><input id="f-date" type="date" value="' + esc(edit ? e.date : today()) + '"></div>' +
     '<div class="field"><label>Account</label><select id="f-acct">' +
-      (accts.length ? accts.map(x => '<option' + (x === lastAcct ? ' selected' : '') + '>' + esc(x) + '</option>').join('')
-                    : '<option value="">No accounts set in Config</option>') + '</select></div>' +
-    '<div class="field"><label>Category</label><select id="f-cat">' + catOptions(first.category) + '</select></div>' +
-    '<div class="field"><label>Subcategory</label><select id="f-sub">' + subOptions(first.category) + '</select></div>' +
-    '<div class="field"><label>Note</label><input id="f-note" placeholder="What was it for"></div>' +
-    '<div class="field"><label>Amount (INR)</label><input id="f-amt" type="number" inputmode="decimal" placeholder="0"></div>' +
+      '<option value=""' + (acct ? '' : ' selected') + '>' + (accts.length ? 'Choose account' : 'No accounts set in Config') + '</option>' +
+      accts.map(x => '<option' + (x === acct ? ' selected' : '') + '>' + esc(x) + '</option>').join('') + '</select></div>' +
+    '<div class="field"><label>Category</label><select id="f-cat">' + cats + '</select></div>' +
+    '<div class="field"><label>Subcategory</label><select id="f-sub">' + subs(cat, edit ? e.subcategory : '') + '</select></div>' +
+    '<div class="field"><label>Note</label><input id="f-note" placeholder="What was it for" value="' + esc(edit ? e.note : '') + '"></div>' +
+    '<div class="field"><label>Amount (INR)</label><input id="f-amt" type="number" inputmode="decimal" placeholder="0" value="' + (edit ? e.amount : '') + '"></div>' +
     '<div class="field"><label>Paid by</label><div class="seg" id="f-who">' +
-      '<button data-p="' + esc(A) + '" aria-pressed="true">' + esc(A) + '</button>' +
-      '<button data-p="' + esc(B) + '" aria-pressed="false">' + esc(B) + '</button></div></div>' +
-    '<button class="btn" id="f-save">Save expense</button>' +
+      [A, B].map(p => '<button data-p="' + esc(p) + '" aria-pressed="' + (p === who) + '">' + esc(p) + '</button>').join('') + '</div></div>' +
+    '<button class="btn" id="f-save">' + (edit ? 'Save changes' : 'Save expense') + '</button>' +
+    (edit ? '<button class="btn ghost" id="f-del" style="color:var(--over)">Delete expense</button>' : '') +
     '<button class="btn ghost" onclick="closeSheet()">Cancel</button>');
 
-  $('#f-cat').onchange = e => { $('#f-sub').innerHTML = subOptions(e.target.value); };
-  $('#f-who').onclick = e => {
-    const b = e.target.closest('button'); if (!b) return;
+  $('#f-cat').onchange = ev => { $('#f-sub').innerHTML = subs(ev.target.value, ''); };
+  $('#f-who').onclick = ev => {
+    const b = ev.target.closest('button'); if (!b) return;
     [...$('#f-who').children].forEach(x => x.setAttribute('aria-pressed', x === b));
   };
-  $('#f-amt').focus();
+  if (!edit) $('#f-amt').focus();
   $('#f-save').onclick = async () => {
     const amt = parseFloat($('#f-amt').value);
     if (!amt || amt <= 0) return toast('Enter an amount');
-    const who = $('#f-who').querySelector('[aria-pressed=true]').dataset.p;
+    const pressed = $('#f-who').querySelector('[aria-pressed=true]');
     const account = $('#f-acct').value;
-    try { if (account) localStorage.setItem('ct_last_account', account); } catch (e) {}
-    await send('addExpense', {
+    if (!edit) { try { if (account) localStorage.setItem('ct_last_account', account); } catch (x) {} }
+    const p = {
       date: $('#f-date').value, account: account,
       category: $('#f-cat').value, subcategory: $('#f-sub').value,
-      note: $('#f-note').value, amount: amt, paidBy: who
-    }, 'Expense saved');
+      note: $('#f-note').value, amount: amt, paidBy: pressed ? pressed.dataset.p : A
+    };
+    if (edit) {
+      p.id = e.id;
+      p.was = { date: e.date, amount: e.amount };   // lets the sheet refuse if that row moved
+      await send('updateExpense', p, 'Expense updated');
+    } else {
+      await send('addExpense', p, 'Expense saved');
+    }
   };
+  if (edit) $('#f-del').onclick = () => confirmDelete(e);
 }
 
 function addFund() {
@@ -793,6 +820,15 @@ async function send(action, payload, okMsg, force) {
     if (!j.ok && j.error === 'duplicate') {
       if (confirm('An identical entry already exists. Add it anyway?')) return send(action, payload, okMsg, true);
       closeSheet(); return;
+    }
+    if (!j.ok && j.error === 'stale') {
+      closeSheet(); toast('That expense changed in the sheet. Refreshed — try again.');
+      load().catch(() => {}); return;
+    }
+    if (!j.ok && j.error === 'unknown_action') {
+      toast('The sheet script needs updating to allow this.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+      return;
     }
     if (!j.ok) throw new Error(j.error);
     D = j.data; cacheData(D); markSynced(); render(); closeSheet(); toast(okMsg);
