@@ -1486,7 +1486,7 @@ button.row{color:inherit;font:inherit}
    Construction — budget tracker. UI is Centric's, data is the Construction
    Budget sheet (Apps Script web app).
    ========================================================================== */
-const BUILD = '2026-10-26a';          // shown in Profile, so we can tell which copy is live
+const BUILD = '2026-10-26b';          // shown in Profile, so we can tell which copy is live
 const REFRESH_MS = 2 * 60 * 1000;     // quiet refresh while the app is open
 const LS = { pass:'cbt.pass', api:'cbt.api', data:'cbt.data', synced:'cbt.synced', acct:'ct_last_account', theme:'cbt.theme' };
 
@@ -1654,7 +1654,7 @@ function renderHome(m){
   const pa = m.people[0], pb = m.people[1], owed = pa.balance;
   const settle = Math.abs(owed) < 1 ? `<div class="row"><div class="tile in">${S('<path d="M5 12.5l4.5 4.5L19 7.5"/>')}</div><div class="l"><div class="n">All square</div><div class="m">Nobody owes anything</div></div><div class="r"><div class="v num money">₹0</div></div></div>`
     : `<button class="row tap" data-go="funds" data-sec="settle"><div class="tile pk">${ICONS.swap}</div><div class="l"><div class="n">${esc(owed>0?pb.name:pa.name)} owes ${esc(owed>0?pa.name:pb.name)}</div><div class="m">To even out the ${Math.round(D.config.split_a*100)}/${Math.round(D.config.split_b*100)} split</div></div><div class="r"><div class="v num money">${fINR(Math.abs(owed))}</div></div></button>`;
-  const catRows = m.cats.slice().sort((a,b)=>b.spent-a.spent).map(k=>{ const u = k.budget ? k.spent/k.budget : (k.spent?1.01:0);
+  const catRows = m.cats.map(k=>{ const u = k.budget ? k.spent/k.budget : (k.spent?1.01:0);
     return `<button class="row tap" data-cat="${esc(k.name)}">${xTile(k.name)}<div class="l"><div class="n">${esc(k.name)}</div>
       <div class="pbar ${u>1?'over':u>0.8?'warn':''}"><i style="width:${(Math.min(1,u)*100).toFixed(1)}%"></i></div></div>
       <div class="r"><div class="v num money">${fINR(k.spent)}</div><div class="s num money">of ${fINR(k.budget)}</div></div></button>`; }).join('');
@@ -1699,7 +1699,7 @@ function vbRow(lbl, s, b, total, attr=''){
     <div class="vb-n"><span class="num money ${over?'down':'sp'}">${fINR(s)}</span><span class="num money ${total?'':over?'down':''}">${fINR(b-s)}</span></div></div></div>`;
 }
 function renderBudget(m){
-  const cats = m.cats.slice().sort((a,b)=>pct(b.spent,b.budget||1)-pct(a.spent,a.budget||1));
+  const cats = m.cats;   // in the Budget tab's order
   $('#v-budget').innerHTML = `
     <div class="card tight vbc"><div class="vb-sum"><div><div class="k">Remaining</div><div class="big num money ${m.remaining<0?'down':''}">${fINR(m.remaining)}</div></div></div>
       ${vbRow('Total', m.spent, m.budget, true)}
