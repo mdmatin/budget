@@ -1490,7 +1490,7 @@ button.row{color:inherit;font:inherit}
    Construction — budget tracker. UI is Centric's, data is the Construction
    Budget sheet (Apps Script web app).
    ========================================================================== */
-const BUILD = '2026-10-26g';          // shown in Profile, so we can tell which copy is live
+const BUILD = '2026-10-26h';          // shown in Profile, so we can tell which copy is live
 const REFRESH_MS = 2 * 60 * 1000;     // quiet refresh while the app is open
 const LS = { pass:'cbt.pass', api:'cbt.api', data:'cbt.data', synced:'cbt.synced', acct:'ct_last_account', theme:'cbt.theme' };
 
@@ -1696,11 +1696,12 @@ function renderBudget(m){
     <div class="card tight vbc"><div class="vb-sum"><div><div class="k">Remaining</div><div class="big num money ${m.remaining<0?'down':''}">${fINR(m.remaining)}</div></div></div>
       ${vbRow('Total', m.spent, m.budget, true)}
     </div>
-    <div class="sechead"><h2>Categories</h2><span class="faint" style="font-size:12.5px">Spent · Left</span></div>
+    <div class="sechead"><h2>Categories</h2><button id="addCat">Add</button></div>
     <div class="card tight vbc vbcats">
       ${cats.map(k=>vbRow(k.name, k.spent, k.budget, false, `data-cat="${esc(k.name)}"`)).join('')}
     </div>`;
   $$('#v-budget [data-cat]').forEach(r=>r.onclick=()=>pushPage({ kind:'cat', cat:r.dataset.cat }));
+  $('#addCat').onclick = ()=>openX('cat');
 }
 
 /* ---------- Expenses (Centric's Activity list) ---------- */
@@ -2024,9 +2025,9 @@ function openX(mode, rec){
     expr: rec && rec.amount ? String(rec.amount) : rec && mode==='budget' ? String(rec.budgeted||'') : '',
     date: rec && rec.date || todayISO(), cat: rec && rec.category || '', sub: rec && rec.subcategory || '',
     acct: rec ? (rec.account || '') : acct, who: rec && rec.paidBy || A, person: rec && rec.person || A,
-    from: rec && rec.from || B, to: rec && rec.to || A, note: rec && rec.note || '', name: '' };
+    from: rec && rec.from || B, to: rec && rec.to || A, note: rec && rec.note || '', name: '', subName: '' };
   if (mode==='expense' && !rec) X.field = 'amount';
-  if (mode==='budget' || mode==='sub') X.field = 'amount';
+  if (mode==='budget' || mode==='sub' || mode==='cat') X.field = 'amount';
   if (X.expr) X.fresh = true;
   paintX();
   $('#backdrop').hidden = false; $('#xsheet').hidden = false;
@@ -2061,7 +2062,7 @@ const xDateLabel = () => { const t = todayISO(), y = new Date(Date.now()-864e5-n
 const ph = t => `<span class="ph">${esc(t)}</span>`;
 
 // which pick-chips each mode shows, in order (the keypad is always first)
-const xChips = () => ({ expense:['category','account','who'], fund:['person'], settle:['from','to'], budget:[], sub:[] })[X.mode];
+const xChips = () => ({ expense:['category','account','who'], fund:['person'], settle:['from','to'], budget:[], sub:[], cat:[] })[X.mode];
 const xLabels = { category:'Category', account:'Account', who:'Paid by', person:'Who', from:'From', to:'To' };
 function chipVal(f){
   if (f==='category') return X.cat ? esc(X.cat + (X.sub ? ' › ' + X.sub : '')) : '';
@@ -2074,9 +2075,10 @@ function chipIcon(f){
   const n = { who:X.who, person:X.person, from:X.from, to:X.to }[f]; return n ? personMark(n) : '';
 }
 const xTitle = () => { const ed = !!X.rec;
-  return { expense: ed ? 'Edit expense' : 'New expense', fund: ed ? 'Edit funds' : 'Log funds', settle: ed ? 'Edit settlement' : 'Settlement', budget:'Edit budget', sub:'New subcategory' }[X.mode]; };
+  return { expense: ed ? 'Edit expense' : 'New expense', fund: ed ? 'Edit funds' : 'Log funds', settle: ed ? 'Edit settlement' : 'Settlement', budget:'Edit budget', sub:'New subcategory', cat:'New category' }[X.mode]; };
 const xHint = () => ({ expense:'Saved to the Expenses tab in your Construction Budget sheet.', fund:'Saved to the Funds tab.', settle:'Money one of you paid the other to even out the split. Saved to the Settlements tab.',
-  budget:'Changes the Budget tab line for this subcategory.', sub:'Adds a line to the Budget tab under ' + (X.rec && X.rec.category || '') + '.' })[X.mode];
+  budget:'Changes the Budget tab line for this subcategory.', sub:'Adds a line to the Budget tab under ' + (X.rec && X.rec.category || '') + '.',
+  cat:'Adds a line to the Budget tab. The amount is the budget for this line — add more subcategories from the category page.' })[X.mode];
 
 function xPanel(){
   const f = X.field; if (!f) return '';
@@ -2113,21 +2115,22 @@ function paintX(){
   const chips = xChips().map(f=>{ const v = chipVal(f), ic = chipIcon(f);
     return `<button class="xfr tap xa-chip ${X.field===f?'on':''} ${ic?'':'noic'}" data-f="${f}">${ic}<span class="v">${v || ph(xLabels[f])}</span></button>`; }).join('');
   const box = (id, k, val, phv) => `<div class="xfr xa-in" data-f="${id}"><span class="k">${esc(k)}</span><span class="v"><input id="${id}" placeholder="${esc(phv)}" value="${esc(val)}" autocomplete="off"></span><button type="button" class="xa-x ${val?'show':''}" aria-label="Clear ${esc(k)}"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 2l6 6M8 2l-6 6"/></svg></button></div>`;
-  const boxes = X.mode==='sub' ? box('xName','Name', X.name, 'e.g. Waterproofing')
+  const boxes = X.mode==='cat' ? box('xName','Category', X.name, 'e.g. Landscaping') + box('xSubName','Subcategory', X.subName, 'optional')
+    : X.mode==='sub' ? box('xName','Name', X.name, 'e.g. Waterproofing')
     : X.mode==='budget' ? '' : box('xNote','Note', X.note, X.mode==='expense' ? 'What was it for' : 'optional');
   const top = X.mode==='budget' ? `<div class="xbudget">${xTile(X.rec.category)}<div><b>${esc(X.rec.subcategory || '—')}</b><span>${esc(X.rec.category)} · spent ${fINR(calc().cats.find(k=>k.name===X.rec.category)?.subs.find(s=>s.subcategory===X.rec.subcategory)?.spent || 0)}</span></div></div>` : '';
-  const dateRow = (X.mode==='budget' || X.mode==='sub') ? '' : `<label class="xa-date"><span>${esc(xDateLabel())}</span><input type="date" id="xDate" value="${esc(X.date)}" aria-label="Date"></label>`;
+  const dateRow = (X.mode==='budget' || X.mode==='sub' || X.mode==='cat') ? '' : `<label class="xa-date"><span>${esc(xDateLabel())}</span><input type="date" id="xDate" value="${esc(X.date)}" aria-label="Date"></label>`;
   el.innerHTML = `<div class="grab"></div><div class="xhd"><h3>${esc(xTitle())}</h3><button data-close>Cancel</button></div>
     <div class="xscroll">${seg}${X.err?`<div class="err">${esc(X.err)}</div>`:''}${top}
       <div class="xa"><div class="xfr tap xa-amt ${X.field==='amount'?'on':''}" data-f="amount"><span class="v">${amtHtml()}</span></div>
         ${dateRow}<div class="xa-chips">${chips}</div><div class="xa-ins">${boxes}</div></div>
-      <button class="btn" data-save>${X.mode==='budget' ? 'Save budget' : X.mode==='sub' ? 'Add subcategory' : 'Save'}</button>
+      <button class="btn" data-save>${X.mode==='budget' ? 'Save budget' : X.mode==='sub' ? 'Add subcategory' : X.mode==='cat' ? 'Add category' : 'Save'}</button>
       ${ed && (X.mode==='expense' || X.mode==='fund' || X.mode==='settle') ? '<button class="btn danger" data-del>Delete</button>' : ''}
       <p class="hint">${esc(xHint())}</p></div>${xPanel()}`;
   wireX(el);
   const t = $('.xa-amt .v b', el); if (t) t.classList.toggle('xfresh', X.fresh && !!X.expr);
 }
-function grab(){ const n = $('#xNote'), nm = $('#xName'), d = $('#xDate'); if (n) X.note = n.value; if (nm) X.name = nm.value; if (d) X.date = d.value || X.date; }
+function grab(){ const n = $('#xNote'), nm = $('#xName'), sn = $('#xSubName'), d = $('#xDate'); if (n) X.note = n.value; if (nm) X.name = nm.value; if (sn) X.subName = sn.value; if (d) X.date = d.value || X.date; }
 function xNext(){
   const order = ['amount', ...xChips()];
   const i = order.indexOf(X.field);
@@ -2169,6 +2172,9 @@ async function saveX(){
   grab();
   const amt = xAmt(), m = X.mode;
   const fail = msg => { X.err = msg; paintX(); $('#xsheet .xscroll').scrollTop = 0; };
+  if (m==='cat'){ const nm = X.name.trim(); if (!nm) return fail('Give the category a name');
+    if (calc().cats.some(k=>k.name.toLowerCase()===nm.toLowerCase())) return fail('That category already exists');
+    return post('addSubcategory', { category:nm, subcategory:X.subName.trim(), budgeted:amt }, 'Category added'); }
   if (m==='sub'){ if (!X.name.trim()) return fail('Give the subcategory a name');
     if (subsOf(X.rec.category).includes(X.name.trim())) return fail('That subcategory already exists');
     return post('addSubcategory', { category:X.rec.category, subcategory:X.name.trim(), budgeted:amt }, 'Subcategory added'); }
