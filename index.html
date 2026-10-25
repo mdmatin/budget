@@ -1486,7 +1486,7 @@ button.row{color:inherit;font:inherit}
    Construction — budget tracker. UI is Centric's, data is the Construction
    Budget sheet (Apps Script web app).
    ========================================================================== */
-const BUILD = '2026-10-25a';          // shown in Profile, so we can tell which copy is live
+const BUILD = '2026-10-25b';          // shown in Profile, so we can tell which copy is live
 const REFRESH_MS = 2 * 60 * 1000;     // quiet refresh while the app is open
 const LS = { pass:'cbt.pass', api:'cbt.api', data:'cbt.data', synced:'cbt.synced', acct:'ct_last_account', theme:'cbt.theme' };
 
@@ -1755,8 +1755,8 @@ function renderFunds(m){
   const group = (list, row) => { const by = {}; list.forEach(x=>(by[x.date]=by[x.date]||[]).push(x));
     return Object.keys(by).sort().reverse().map(d=>`<div class="daygroup tday"><span>${esc(dmy(d))}</span><span class="num money">${fINR(by[d].reduce((s,x)=>s+x.amount,0))}</span></div>
       <div class="card tight">${by[d].map(row).join('')}</div>`).join(''); };
-  const fRow = f => `<div class="row">${personMark(f.person)}<div class="l"><div class="n">${esc(f.person)}</div><div class="m"><span class="tarw in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></span><span class="mt">${esc(f.note || 'Funds logged')}</span></div></div><div class="r"><div class="v num money up">+${fINR(f.amount)}</div></div></div>`;
-  const sRow = s => `<div class="row"><div class="tile pk">${ICONS.swap}</div><div class="l"><div class="n">${esc(s.from)} → ${esc(s.to)}</div><div class="m"><span class="mt">${esc(s.note || s.mode || 'Settlement')}</span></div></div><div class="r"><div class="v num money">${fINR(s.amount)}</div></div></div>`;
+  const fRow = f => `<button class="row trow" data-fund="${f.id}">${personMark(f.person)}<div class="l"><div class="n">${esc(f.person)}</div><div class="m"><span class="tarw in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></span><span class="mt">${esc(f.note || 'Funds logged')}</span></div></div><div class="r"><div class="v num money up">+${fINR(f.amount)}</div></div></button>`;
+  const sRow = s => `<button class="row trow" data-set="${s.id}"><div class="tile pk">${ICONS.swap}</div><div class="l"><div class="n">${esc(s.from)} → ${esc(s.to)}</div><div class="m"><span class="mt">${esc(s.note || s.mode || 'Settlement')}</span></div></div><div class="r"><div class="v num money">${fINR(s.amount)}</div></div></button>`;
   $('#v-funds').innerHTML = `
     <div class="seg segwide" id="fundSeg">${[['funds','Funds'],['settle','Settlements']].map(([k,l])=>`<button data-s="${k}" class="${fundSec===k?'on':''}">${l}</button>`).join('')}</div>
     ${fundSec==='funds' ? `
@@ -1770,6 +1770,8 @@ function renderFunds(m){
         <div class="r"><div class="v num money ${p.balance>0.5?'up':p.balance<-0.5?'down':''}">${Math.abs(p.balance)<1?'Even':(p.balance>0?'+':'−')+fINR(Math.abs(p.balance)).replace('−','')}</div><div class="s">${Math.abs(p.balance)<1?'&nbsp;':p.balance>0?'is owed':'owes'}</div></div></div>`).join('')}</div>
       ${group(sets, sRow) || '<div class="empty">No settlements yet — tap + to record one</div>'}`}`;
   $$('#fundSeg button').forEach(b=>b.onclick=()=>{ fundSec = b.dataset.s; renderFunds(calc()); window.scrollTo(0,0); });
+  $$('#v-funds [data-fund]').forEach(r=>r.onclick=()=>{ const f = D.funds.find(x=>String(x.id)===r.dataset.fund); if (f) openX('fund', f); });
+  $$('#v-funds [data-set]').forEach(r=>r.onclick=()=>{ const t = D.settlements.find(x=>String(x.id)===r.dataset.set); if (t) openX('settle', t); });
 }
 
 function wireGo(root){ $$('[data-go]', root).forEach(b=>b.onclick=()=>{ if (b.dataset.sec) fundSec = b.dataset.sec; show(b.dataset.go); });
@@ -2007,8 +2009,8 @@ function openX(mode, rec){
   X = { mode, rec: rec || null, field: null, openCat: '', fresh: false, err: '',
     expr: rec && rec.amount ? String(rec.amount) : rec && mode==='budget' ? String(rec.budgeted||'') : '',
     date: rec && rec.date || todayISO(), cat: rec && rec.category || '', sub: rec && rec.subcategory || '',
-    acct: rec ? (rec.account || '') : acct, who: rec && rec.paidBy || A, person: A,
-    from: B, to: A, note: rec && rec.note || '', name: '' };
+    acct: rec ? (rec.account || '') : acct, who: rec && rec.paidBy || A, person: rec && rec.person || A,
+    from: rec && rec.from || B, to: rec && rec.to || A, note: rec && rec.note || '', name: '' };
   if (mode==='expense' && !rec) X.field = 'amount';
   if (mode==='budget' || mode==='sub') X.field = 'amount';
   if (X.expr) X.fresh = true;
@@ -2058,7 +2060,7 @@ function chipIcon(f){
   const n = { who:X.who, person:X.person, from:X.from, to:X.to }[f]; return n ? personMark(n) : '';
 }
 const xTitle = () => { const ed = !!X.rec;
-  return { expense: ed ? 'Edit expense' : 'New expense', fund:'Log funds', settle:'Settlement', budget:'Edit budget', sub:'New subcategory' }[X.mode]; };
+  return { expense: ed ? 'Edit expense' : 'New expense', fund: ed ? 'Edit funds' : 'Log funds', settle: ed ? 'Edit settlement' : 'Settlement', budget:'Edit budget', sub:'New subcategory' }[X.mode]; };
 const xHint = () => ({ expense:'Saved to the Expenses tab in your Construction Budget sheet.', fund:'Saved to the Funds tab.', settle:'Money one of you paid the other to even out the split. Saved to the Settlements tab.',
   budget:'Changes the Budget tab line for this subcategory.', sub:'Adds a line to the Budget tab under ' + (X.rec && X.rec.category || '') + '.' })[X.mode];
 
@@ -2092,7 +2094,7 @@ function amtHtml(){ return X.expr ? `<b class="num">${xHasOp(X.expr) ? esc(X.exp
 
 function paintX(){
   const el = $('#xsheet'), ed = !!X.rec;
-  const seg = (X.mode==='expense' && !ed) || X.mode==='fund' || X.mode==='settle'
+  const seg = !ed && (X.mode==='expense' || X.mode==='fund' || X.mode==='settle')
     ? `<div class="seg xseg">${[['expense','Expense'],['fund','Funds'],['settle','Settle']].map(([m,l])=>`<button data-m="${m}" class="${X.mode===m?'on':''}">${l}</button>`).join('')}</div>` : '';
   const chips = xChips().map(f=>{ const v = chipVal(f), ic = chipIcon(f);
     return `<button class="xfr tap xa-chip ${X.field===f?'on':''} ${ic?'':'noic'}" data-f="${f}">${ic}<span class="v">${v || ph(xLabels[f])}</span></button>`; }).join('');
@@ -2106,7 +2108,7 @@ function paintX(){
       <div class="xa"><div class="xfr tap xa-amt ${X.field==='amount'?'on':''}" data-f="amount"><span class="v">${amtHtml()}</span></div>
         ${dateRow}<div class="xa-chips">${chips}</div><div class="xa-ins">${boxes}</div></div>
       <button class="btn" data-save>${X.mode==='budget' ? 'Save budget' : X.mode==='sub' ? 'Add subcategory' : 'Save'}</button>
-      ${ed && X.mode==='expense' ? '<button class="btn danger" data-del>Delete</button>' : ''}
+      ${ed && (X.mode==='expense' || X.mode==='fund' || X.mode==='settle') ? '<button class="btn danger" data-del>Delete</button>' : ''}
       <p class="hint">${esc(xHint())}</p></div>${xPanel()}`;
   wireX(el);
   const t = $('.xa-amt .v b', el); if (t) t.classList.toggle('xfresh', X.fresh && !!X.expr);
@@ -2145,7 +2147,9 @@ function wireX(el){
   $('[data-save]', el).onclick = saveX;
   const del = $('[data-del]', el); if (del) del.onclick = async ()=>{
     if (del.dataset.arm!=='1'){ del.dataset.arm='1'; del.textContent='Tap again to delete'; return; }
-    await post('deleteExpense', { id: X.rec.id }, 'Expense deleted'); };
+    const act = { expense:'deleteExpense', fund:'deleteFund', settle:'deleteSettlement' }[X.mode];
+    const was = { date:X.rec.date, amount:X.rec.amount };
+    await post(act, { id: X.rec.id, was }, { expense:'Expense deleted', fund:'Funds entry deleted', settle:'Settlement deleted' }[X.mode]); };
 }
 async function saveX(){
   grab();
@@ -2163,9 +2167,12 @@ async function saveX(){
     if (X.acct) lsSet(LS.acct, X.acct);
     return post('addExpense', p, 'Expense saved');
   }
-  if (m==='fund') return post('addFund', { date:X.date, person:X.person, amount:amt, note:X.note.trim() }, 'Funds logged');
+  const was = X.rec ? { id:X.rec.id, was:{ date:X.rec.date, amount:X.rec.amount } } : null;
+  if (m==='fund'){ const p = { date:X.date, person:X.person, amount:amt, note:X.note.trim() };
+    return was ? post('updateFund', Object.assign(p, was), 'Funds entry updated') : post('addFund', p, 'Funds logged'); }
   if (m==='settle'){ if (X.from===X.to) return fail('From and To must be different');
-    return post('addSettlement', { date:X.date, from:X.from, to:X.to, amount:amt, mode:'', note:X.note.trim() }, 'Settlement recorded'); }
+    const p = { date:X.date, from:X.from, to:X.to, amount:amt, mode: X.rec && X.rec.mode || '', note:X.note.trim() };
+    return was ? post('updateSettlement', Object.assign(p, was), 'Settlement updated') : post('addSettlement', p, 'Settlement recorded'); }
 }
 async function post(action, payload, okMsg, force){
   const btn = $('#xsheet [data-save]'); if (btn){ btn.disabled = true; btn.textContent = 'Saving…'; }
@@ -2173,7 +2180,7 @@ async function post(action, payload, okMsg, force){
   try{
     const j = await apiPost(action, payload, force);
     if (!j.ok && j.error==='duplicate'){ if (confirm('An identical entry already exists. Add it anyway?')) return post(action, payload, okMsg, true); reset(); return; }
-    if (!j.ok && j.error==='stale'){ closeX(); toast('That expense changed in the sheet. Refreshed — try again.'); refresh(false); return; }
+    if (!j.ok && j.error==='stale'){ closeX(); toast('That entry changed in the sheet. Refreshed — try again.'); refresh(false); return; }
     if (!j.ok && j.error==='bad_passcode'){ closeX(); [LS.pass].forEach(lsDel); showSetup('Your saved passcode no longer works.'); return; }
     if (!j.ok) throw new Error(j.error==='unknown_action' ? 'The sheet script needs updating to allow this' : j.error);
     setData(j.data); render(); closeX(); toast(okMsg); setStatus('Updated just now','');
