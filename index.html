@@ -1486,7 +1486,7 @@ button.row{color:inherit;font:inherit}
    Construction — budget tracker. UI is Centric's, data is the Construction
    Budget sheet (Apps Script web app).
    ========================================================================== */
-const BUILD = '2026-10-25b';          // shown in Profile, so we can tell which copy is live
+const BUILD = '2026-10-26a';          // shown in Profile, so we can tell which copy is live
 const REFRESH_MS = 2 * 60 * 1000;     // quiet refresh while the app is open
 const LS = { pass:'cbt.pass', api:'cbt.api', data:'cbt.data', synced:'cbt.synced', acct:'ct_last_account', theme:'cbt.theme' };
 
@@ -1755,7 +1755,7 @@ function renderFunds(m){
   const group = (list, row) => { const by = {}; list.forEach(x=>(by[x.date]=by[x.date]||[]).push(x));
     return Object.keys(by).sort().reverse().map(d=>`<div class="daygroup tday"><span>${esc(dmy(d))}</span><span class="num money">${fINR(by[d].reduce((s,x)=>s+x.amount,0))}</span></div>
       <div class="card tight">${by[d].map(row).join('')}</div>`).join(''); };
-  const fRow = f => `<button class="row trow" data-fund="${f.id}">${personMark(f.person)}<div class="l"><div class="n">${esc(f.person)}</div><div class="m"><span class="tarw in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></span><span class="mt">${esc(f.note || 'Funds logged')}</span></div></div><div class="r"><div class="v num money up">+${fINR(f.amount)}</div></div></button>`;
+  const fRow = f => `<button class="row trow" data-fund="${f.id}">${personMark(f.person)}<div class="l"><div class="n">${esc(f.person)}</div><div class="m"><span class="tarw in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></span><span class="mt">${esc([f.note || 'Funds logged', f.linked ? 'from Money' : ''].filter(Boolean).join(' · '))}</span></div></div><div class="r"><div class="v num money up">+${fINR(f.amount)}</div></div></button>`;
   const sRow = s => `<button class="row trow" data-set="${s.id}"><div class="tile pk">${ICONS.swap}</div><div class="l"><div class="n">${esc(s.from)} → ${esc(s.to)}</div><div class="m"><span class="mt">${esc(s.note || s.mode || 'Settlement')}</span></div></div><div class="r"><div class="v num money">${fINR(s.amount)}</div></div></button>`;
   $('#v-funds').innerHTML = `
     <div class="seg segwide" id="fundSeg">${[['funds','Funds'],['settle','Settlements']].map(([k,l])=>`<button data-s="${k}" class="${fundSec===k?'on':''}">${l}</button>`).join('')}</div>
@@ -1770,7 +1770,8 @@ function renderFunds(m){
         <div class="r"><div class="v num money ${p.balance>0.5?'up':p.balance<-0.5?'down':''}">${Math.abs(p.balance)<1?'Even':(p.balance>0?'+':'−')+fINR(Math.abs(p.balance)).replace('−','')}</div><div class="s">${Math.abs(p.balance)<1?'&nbsp;':p.balance>0?'is owed':'owes'}</div></div></div>`).join('')}</div>
       ${group(sets, sRow) || '<div class="empty">No settlements yet — tap + to record one</div>'}`}`;
   $$('#fundSeg button').forEach(b=>b.onclick=()=>{ fundSec = b.dataset.s; renderFunds(calc()); window.scrollTo(0,0); });
-  $$('#v-funds [data-fund]').forEach(r=>r.onclick=()=>{ const f = D.funds.find(x=>String(x.id)===r.dataset.fund); if (f) openX('fund', f); });
+  $$('#v-funds [data-fund]').forEach(r=>r.onclick=()=>{ const f = D.funds.find(x=>String(x.id)===r.dataset.fund); if (!f) return;
+    if (f.linked){ toast('Synced from your Money sheet — change it there'); return; } openX('fund', f); });
   $$('#v-funds [data-set]').forEach(r=>r.onclick=()=>{ const t = D.settlements.find(x=>String(x.id)===r.dataset.set); if (t) openX('settle', t); });
 }
 
