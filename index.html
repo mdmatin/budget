@@ -1489,7 +1489,7 @@ button.row{color:inherit;font:inherit}
    Construction — budget tracker. UI is Centric's, data is the Construction
    Budget sheet (Apps Script web app).
    ========================================================================== */
-const BUILD = '2026-10-26d';          // shown in Profile, so we can tell which copy is live
+const BUILD = '2026-10-26e';          // shown in Profile, so we can tell which copy is live
 const REFRESH_MS = 2 * 60 * 1000;     // quiet refresh while the app is open
 const LS = { pass:'cbt.pass', api:'cbt.api', data:'cbt.data', synced:'cbt.synced', acct:'ct_last_account', theme:'cbt.theme' };
 
@@ -1674,10 +1674,10 @@ function renderHome(m){
       </div>
     </div>
 
-    ${whoPaidHtml(D.expenses, settle)}
-
     <div class="sechead"><h2>Categories</h2><button data-go="budget">Budget</button></div>
-    <div class="card tight">${catRows || '<div class="empty">No budget lines yet</div>'}</div>`;
+    <div class="card tight">${catRows || '<div class="empty">No budget lines yet</div>'}</div>
+
+    ${whoPaidHtml(D.expenses, settle)}`;
   wireGo($('#v-home'));
 }
 
