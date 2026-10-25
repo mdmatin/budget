@@ -1428,6 +1428,7 @@ button.row{color:inherit;font:inherit}
 .wpc .wpbar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--sunken);margin:12px 0 4px;gap:2px}
 .wpc .wpbar i{display:block;height:100%}
 .wpdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:0}
+.vbcats .vb-row:first-child{border-top:0}
 </style>
 </head>
 <body>
@@ -1489,7 +1490,7 @@ button.row{color:inherit;font:inherit}
    Construction — budget tracker. UI is Centric's, data is the Construction
    Budget sheet (Apps Script web app).
    ========================================================================== */
-const BUILD = '2026-10-26e';          // shown in Profile, so we can tell which copy is live
+const BUILD = '2026-10-26f';          // shown in Profile, so we can tell which copy is live
 const REFRESH_MS = 2 * 60 * 1000;     // quiet refresh while the app is open
 const LS = { pass:'cbt.pass', api:'cbt.api', data:'cbt.data', synced:'cbt.synced', acct:'ct_last_account', theme:'cbt.theme' };
 
@@ -1649,7 +1650,7 @@ function render(){
   if (pageStack.length){ const el=$('#page'), y=el.scrollTop; renderPage(); el.scrollTop=y; }
   paintDate();
 }
-function paintDate(){ $('#navDate').textContent = D ? (D.config.project_name || 'Construction') : ''; }
+function paintDate(){ $('#navDate').textContent = ''; }   // no label above the title
 
 /* ---------- Overview ---------- */
 function renderHome(m){
@@ -1694,10 +1695,11 @@ function renderBudget(m){
   $('#v-budget').innerHTML = `
     <div class="card tight vbc"><div class="vb-sum"><div><div class="k">Remaining</div><div class="big num money ${m.remaining<0?'down':''}">${fINR(m.remaining)}</div></div></div>
       ${vbRow('Total', m.spent, m.budget, true)}
-      <div class="vb-cap"><span>Budget</span><span>Spent · Left</span></div>
-      ${cats.map(k=>vbRow(k.name, k.spent, k.budget, false, `data-cat="${esc(k.name)}"`)).join('')}
     </div>
-    <div class="tline num money"><div><span>Budget</span><b>${fINR(m.budget)}</b></div><div><span>${esc(m.A)}'s share</span><b>${fINR(m.people[0].share)}</b></div><div><span>${esc(m.B)}'s share</span><b>${fINR(m.people[1].share)}</b></div></div>`;
+    <div class="sechead"><h2>Categories</h2><span class="faint" style="font-size:12.5px">Spent · Left</span></div>
+    <div class="card tight vbc vbcats">
+      ${cats.map(k=>vbRow(k.name, k.spent, k.budget, false, `data-cat="${esc(k.name)}"`)).join('')}
+    </div>`;
   $$('#v-budget [data-cat]').forEach(r=>r.onclick=()=>pushPage({ kind:'cat', cat:r.dataset.cat }));
 }
 
@@ -1912,9 +1914,11 @@ function catBody(cat){
   const k = calc().cats.find(x=>x.name===cat) || { name:cat, budget:0, spent:0, subs:[] };
   const ex = D.expenses.filter(e=>e.category===cat).sort((a,b)=>(b.date||'').localeCompare(a.date||'') || b.id-a.id);
   const by = {}; ex.forEach(e=>(by[e.date]=by[e.date]||[]).push(e));
-  return `<div class="sechead"><h2>Budget</h2><button id="addSub">Add subcategory</button></div>
-    <div class="card tight vbc"><div class="vb-sum"><div><div class="k">Remaining</div><div class="big num money ${k.budget-k.spent<0?'down':''}">${fINR(k.budget-k.spent)}</div></div><div>${xTile(cat)}</div></div>
+  return `<div class="card tight vbc"><div class="vb-sum"><div><div class="k">Remaining</div><div class="big num money ${k.budget-k.spent<0?'down':''}">${fINR(k.budget-k.spent)}</div></div><div>${xTile(cat)}</div></div>
       ${vbRow('Total', k.spent, k.budget, true)}
+    </div>
+    <div class="sechead"><h2>Subcategories</h2><button id="addSub">Add</button></div>
+    <div class="card tight vbc vbcats">
       ${k.subs.map(s=>vbRow(s.subcategory || '—', s.spent, s.budgeted, false, `data-sub="${esc(s.subcategory)}"`)).join('')}
       ${k.unassigned ? vbRow('No subcategory', k.unassigned, 0, false) : ''}
     </div>
