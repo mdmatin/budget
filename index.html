@@ -1425,6 +1425,9 @@ button.row{color:inherit;font:inherit}
 .xbudget span{display:block;font-size:13px;color:var(--ink-2)}
 #fundSeg{margin-bottom:14px}
 .chips{padding-top:0}
+.wpc .wpbar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--sunken);margin:12px 0 4px;gap:2px}
+.wpc .wpbar i{display:block;height:100%}
+.wpdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:0}
 </style>
 </head>
 <body>
@@ -1486,7 +1489,7 @@ button.row{color:inherit;font:inherit}
    Construction — budget tracker. UI is Centric's, data is the Construction
    Budget sheet (Apps Script web app).
    ========================================================================== */
-const BUILD = '2026-10-26b';          // shown in Profile, so we can tell which copy is live
+const BUILD = '2026-10-26c';          // shown in Profile, so we can tell which copy is live
 const REFRESH_MS = 2 * 60 * 1000;     // quiet refresh while the app is open
 const LS = { pass:'cbt.pass', api:'cbt.api', data:'cbt.data', synced:'cbt.synced', acct:'ct_last_account', theme:'cbt.theme' };
 
@@ -1671,12 +1674,7 @@ function renderHome(m){
       </div>
     </div>
 
-    <div class="sechead"><h2>Who has paid</h2><button data-go="exp">Expenses</button></div>
-    <div class="card tight">
-      ${m.people.map(p=>`<div class="row">${personMark(p.name)}<div class="l"><div class="n">${esc(p.name)}</div><div class="m">${(pct(p.paid, m.spent)*100).toFixed(0)}% of spend · cash ${fINR(p.cash)}</div></div>
-        <div class="r"><div class="v num money">${fINR(p.paid)}</div><div class="s num money">funded ${fINR(p.funds)}</div></div></div>`).join('')}
-      ${settle}
-    </div>
+    ${whoPaidHtml(D.expenses, settle)}
 
     <div class="sechead"><h2>Funding</h2><button data-go="funds">Funds</button></div>
     <div class="card tight">
@@ -1928,9 +1926,27 @@ function catBody(cat){
       ${k.unassigned ? vbRow('No subcategory', k.unassigned, 0, false) : ''}
     </div>
     <p class="hint" style="margin:-6px 24px 6px">Tap a line to change its budget.</p>
+    ${whoPaidHtml(ex)}
     <div class="sechead"><h2>Expenses</h2><span class="faint num money" style="font-size:14px">${fINR(ex.reduce((s,e)=>s+e.amount,0))}</span></div>
     ${Object.keys(by).sort().reverse().map(d=>`<div class="daygroup tday"><span>${esc(dmy(d))}</span><span class="num money">${fINR2(by[d].reduce((s,e)=>s+e.amount,0))}</span></div>
       <div class="card tight">${by[d].map(expRow).join('')}</div>`).join('') || '<div class="empty">Nothing spent here yet</div>'}`;
+}
+/* Who paid what in one category: a split bar, then one row per person
+   (share of this category, amount, number of payments). */
+function whoPaidHtml(ex, extra){
+  const total = ex.reduce((s,e)=>s+e.amount,0);
+  if (!total) return '';
+  const names = [D.config.person_a, D.config.person_b];
+  ex.forEach(e=>{ if (e.paidBy && !names.includes(e.paidBy)) names.push(e.paidBy); });
+  const by = names.map(n=>{ const l = ex.filter(e=>e.paidBy===n); return { n, amt:l.reduce((s,e)=>s+e.amount,0), cnt:l.length }; }).filter(x=>x.cnt);
+  const tint = i => ['var(--blue)','#ff9f0a','#8e8e93'][i] || '#8e8e93';
+  return `<div class="sechead"><h2>Who paid</h2><span class="faint num money" style="font-size:14px">${fINR(total)}</span></div>
+    <div class="card tight wpc">
+      <div class="wpbar">${by.map((x,i)=>`<i style="width:${(x.amt/total*100).toFixed(2)}%;background:${tint(i)}"></i>`).join('')}</div>
+      ${by.map((x,i)=>`<div class="row">${personMark(x.n)}<div class="l"><div class="n">${esc(x.n)}</div><div class="m"><span class="wpdot" style="background:${tint(i)}"></span>${Math.round(x.amt/total*100)}% · ${plural(x.cnt,'payment')}</div></div>
+        <div class="r"><div class="v num money">${fINR(x.amt)}</div></div></div>`).join('')}
+      ${extra || ''}
+    </div>`;
 }
 function wireCat(cat){
   $$('#page [data-sub]').forEach(r=>r.onclick=()=>{ const line = D.budget.find(b=>b.category===cat && b.subcategory===r.dataset.sub); if (line) openX('budget', line); });
