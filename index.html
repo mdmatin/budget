@@ -1616,7 +1616,7 @@ html[data-theme=dark] .tabs button.on{color:#fff}
    Construction — budget tracker. UI is Centric's, data is the Construction
    Budget sheet (Apps Script web app).
    ========================================================================== */
-const BUILD = '2026-10-27a';          // shown in Profile, so we can tell which copy is live
+const BUILD = '2026-10-27b';          // shown in Profile, so we can tell which copy is live
 const REFRESH_MS = 2 * 60 * 1000;     // quiet refresh while the app is open
 const LS = { pass:'cbt.pass', api:'cbt.api', data:'cbt.data', synced:'cbt.synced', acct:'ct_last_account', theme:'cbt.theme' };
 
@@ -1831,6 +1831,18 @@ function courseSvg(total, laid, col, h=18, max=24, ex=0){
 }
 const pctTxt = (a,b) => b>0 ? Math.round(a/b*100) : 0;
 
+/* ---------- Still to bring: each funder's share of the budget vs what they've put in ---------- */
+function toBringHtml(m, compact){
+  const shade = ['#c4512c','#d8784f'];
+  const need = m.people.reduce((s,p)=>s+Math.max(0,p.gap),0);
+  const rows = m.people.map((p,i)=>{ const left = Math.max(0,p.gap), done = left < 1;
+    return `<div class="course ${compact?'sm':''}"><div class="t"><b>${esc(p.name)}</b><span>${done ? '<em>Fully funded</em>' : `<em>${fINR(left)}</em> more · ${bN(left)} bricks`}</span></div>
+      ${courseSvg(bricks(p.share), bricks(p.funds), shade[i], compact?13:18)}
+      <div class="cf"><span>${fINR(p.funds)} in of ${fINR(p.share)} share</span><span>${pctTxt(p.funds,p.share)}%</span></div></div>`; }).join('');
+  return `<div class="sechead"><h2>Still to bring</h2><span class="faint" style="font-size:13px">${need<1 ? 'all funded' : fCompact(need)+' · '+bN(need)+' bricks'}</span></div>
+    <div class="card" style="padding:2px 16px">${rows}</div>`;
+}
+
 /* ---------- Wall (home) ---------- */
 function settleCard(m){
   const pa = m.people[0], pb = m.people[1], owed = pa.balance;
@@ -1853,7 +1865,8 @@ function renderHome(m){
       <div><div class="k">${esc(pb.name)} laid</div><div class="v">${bN(pb.paid)}</div><div class="s">${fCompact(pb.paid)}</div></div>
       <div class="tap" data-go="funds"><div class="k">On site</div><div class="v ${m.cash<0?'down':''}">${bN(m.cash)}</div><div class="s">${fCompact(m.cash)} cash</div></div>
     </div>
-    ${settleCard(m)}`;
+    ${settleCard(m)}
+    ${toBringHtml(m, true)}`;
   wireGo($('#v-home'));
 }
 
@@ -1947,6 +1960,7 @@ function renderFunds(m){
       <div><div class="k">Laid</div><div class="v">${bN(m.spent)}</div><div class="s">${fCompact(m.spent)}</div></div>
       <div><div class="k">On site</div><div class="v ${m.cash<0?'down':''}">${bN(m.cash)}</div><div class="s">${fCompact(m.cash)}</div></div>
     </div>
+    ${toBringHtml(m)}
     <div class="sechead"><h2>Even it out</h2><span class="faint" style="font-size:13px">${Math.round(D.config.split_a*100)}/${Math.round(D.config.split_b*100)} split</span></div>
     ${settleCard(m).replace('data-go="funds" data-sec="settle"','')}
     <div class="seg segwide" id="fundSeg" style="margin:8px 14px 12px">${[['funds','Deliveries'],['settle','Settlements']].map(([k,l])=>`<button data-s="${k}" class="${fundSec===k?'on':''}">${l}</button>`).join('')}</div>
