@@ -1620,7 +1620,7 @@ html[data-theme=dark] .tabs button.on{color:#fff}
    Construction — budget tracker. UI is Centric's, data is the Construction
    Budget sheet (Apps Script web app).
    ========================================================================== */
-const BUILD = '2026-10-27c';          // shown in Profile, so we can tell which copy is live
+const BUILD = '2026-10-27d';          // shown in Profile, so we can tell which copy is live
 const REFRESH_MS = 2 * 60 * 1000;     // quiet refresh while the app is open
 const LS = { pass:'cbt.pass', api:'cbt.api', data:'cbt.data', synced:'cbt.synced', acct:'ct_last_account', theme:'cbt.theme' };
 
@@ -2045,9 +2045,7 @@ function ogHome(m){
     <div class="sechead"><h2>Categories</h2><button data-go="budget">Budget</button></div>
     <div class="card tight">${catRows || '<div class="empty">No budget lines yet</div>'}</div>
 
-    ${whoPaidHtml(D.expenses, settle)}
-
-    ${ogToBring(m)}`;
+    ${whoPaidHtml(D.expenses, settle)}`;
   wireGo($('#v-home'));
 }
 
@@ -2096,7 +2094,6 @@ function ogFunds(m){
         <div class="pbar ${p.funds>=p.share?'':''}"><i style="width:${(Math.min(1,pct(p.funds,p.share))*100).toFixed(1)}%"></i></div></div>
         <div class="r"><div class="v num money">${fINR(p.funds)}</div><div class="s num money">${p.gap>0?fINR(p.gap)+' to go':'fully funded'}</div></div></div>`).join('')}
         <div class="rowtotal num money"><span>Total</span><span>${fINR(m.fundsTotal)}</span></div></div>
-      ${ogToBring(m)}
       ${group(funds, fRow) || '<div class="empty">No funds logged yet — tap + to log some</div>'}`
     : `
       <div class="card tight">${m.people.map(p=>`<div class="row">${personMark(p.name)}<div class="l"><div class="n">${esc(p.name)}</div><div class="m">Paid ${fINR(p.paid)} · fair share ${fINR(m.spent*(p.name===m.A?D.config.split_a:D.config.split_b))}</div></div>
@@ -2146,15 +2143,6 @@ function whoPaidHtml(ex, extra){
     </div>`;
 }
 
-/* OG "Still to bring": each funder's share of the budget vs what they've put in */
-function ogToBring(m){
-  const need = m.people.reduce((s,p)=>s+Math.max(0,p.gap),0);
-  return `<div class="sechead"><h2>Still to bring</h2><span class="faint num money" style="font-size:14px">${need<1?'All funded':fINR(need)}</span></div>
-    <div class="card tight">${m.people.map(p=>{ const left = Math.max(0,p.gap);
-      return `<div class="row">${personMark(p.name)}<div class="l"><div class="n">${esc(p.name)}</div>
-        <div class="pbar"><i style="width:${(Math.min(1,pct(p.funds,p.share))*100).toFixed(1)}%"></i></div></div>
-        <div class="r"><div class="v num money">${left<1?'Done':fINR(left)}</div><div class="s num money">${left<1?'fully funded':'more · '+Math.round(pct(p.funds,p.share)*100)+'% in'}</div></div></div>`; }).join('')}</div>`;
-}
 /* ==========================================================================
    NAV — Centric's floating glass bar with the travelling lens
    ========================================================================== */
