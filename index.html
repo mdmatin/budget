@@ -1620,7 +1620,7 @@ html[data-theme=dark] .tabs button.on{color:#fff}
    Construction — budget tracker. UI is Centric's, data is the Construction
    Budget sheet (Apps Script web app).
    ========================================================================== */
-const BUILD = '2026-10-27d';          // shown in Profile, so we can tell which copy is live
+const BUILD = '2026-10-31a';          // shown in Profile, so we can tell which copy is live
 const REFRESH_MS = 2 * 60 * 1000;     // quiet refresh while the app is open
 const LS = { pass:'cbt.pass', api:'cbt.api', data:'cbt.data', synced:'cbt.synced', acct:'ct_last_account', theme:'cbt.theme' };
 
@@ -1685,7 +1685,7 @@ function brickTile(cat){
 const ICONS = {
   cash: S('<rect x="2.8" y="6.5" width="18.4" height="11" rx="1.8"/><circle cx="12" cy="12" r="2.4"/><path d="M6 9.5v.01M18 14.5v.01"/>'),
   bank: S('<rect x="3.2" y="6.6" width="17.6" height="12.4" rx="2.6"/><path d="M3.2 10.4h17.6"/><path d="M16.4 15.2h1.6"/>'),
-  swap: S('<path d="M7 7h12l-3-3M17 17H5l3 3"/>'),
+  swap: S('<path d="M7 9h12l-3-3M17 15H5l3 3"/>'),
   fund: S('<path d="M12 4v12M7 11l5 5 5-5"/><path d="M4 20h16"/>')
 };
 // logos live with Centric on GitHub Pages; a missing file simply leaves the icon showing
@@ -2314,6 +2314,8 @@ function wireCat(cat){
 
 /* ---------- profile (iOS Settings look, as in Centric) ---------- */
 const PI = {
+  half:'<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17z" fill="currentColor"/>',
+  swatch:'<circle cx="8" cy="9" r="3.2"/><circle cx="16" cy="9" r="3.2"/><circle cx="12" cy="15.5" r="3.2"/>',
   sync:'<path d="M20 11a8 8 0 0 0-14.9-3M4 13a8 8 0 0 0 14.9 3"/><path d="M5 3v5h5M19 21v-5h-5"/>',
   sheet:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 9h16M4 15h16M10 3v18"/>',
   info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/>',
@@ -2332,14 +2334,10 @@ function profileBody(){
   return `<div class="prof">
    <div class="hero"><div class="av me"><img src="${esc(($('#btnMore img')||{}).src||'')}" alt=""></div><div class="nm">${esc(c.person_a || 'Matin')}</div><div class="sub2"><i></i>Connected to Google Sheets · ${esc(synced)}</div></div>
 
-   <h3>Appearance</h3><div class="grp"><div class="themes">
-    ${[['light','l','Light'],['dark','d','Dark'],['auto','a','Automatic']].map(([v,k,l])=>`<button class="th" data-thm="${v}"><div class="mini ${k}"><span style="top:14px"></span><span style="top:30px;height:28px"></span><span style="top:64px"></span></div>${l}<span class="rad ${th===v?'on':''}"></span></button>`).join('')}
-   </div></div>
-
-   <h3>Style</h3><div class="grp"><div class="themes">
-    ${[['brick','Brick','#f3ede3','#2a1c14','#e2572b'],['og','OG','#f5f5f7','#d1d1d6','#0066cc']].map(([v,l,bg,ln,ac])=>`<button class="th" data-skin="${v}"><div class="mini" style="background:${bg}"><span style="top:14px;background:${ln}"></span><span style="top:30px;height:28px;background:${ac}"></span><span style="top:64px;background:${ln}"></span></div>${l}<span class="rad ${skin===v?'on':''}"></span></button>`).join('')}
-   </div></div>
-   <div class="ft">Same app, two looks. Everything works the same in both.</div>
+   <h3>Appearance</h3><div class="grp">
+    ${row('half','#636366','Mode', `<span class="seg2">${[['light','Light'],['dark','Dark'],['auto','Auto']].map(([v,l])=>`<button data-thm="${v}" class="${th===v?'on':''}">${l}</button>`).join('')}</span>`)}
+    ${row('swatch','#5856d6','Theme', `<span class="vl">${skin==='og'?'OG':'Brick'}${CHV}</span><select data-pick="skin" aria-label="Theme">${[['brick','Brick'],['og','OG']].map(([v,l])=>`<option value="${v}" ${skin===v?'selected':''}>${l}</option>`).join('')}</select>`)}
+   </div>
 
    <h3>Project</h3><div class="grp">
     ${row('home','#ff9500','Project', `<span class="vl">${esc(c.project_name || 'Construction')}</span>`)}
@@ -2367,7 +2365,7 @@ function profileBody(){
 function wireProfile(){
   const again = ()=>{ const el=$('#page'), y=el.scrollTop; renderPage(); el.scrollTop=y; };
   $$('#page [data-thm]').forEach(b=>b.onclick=()=>{ lsSet(LS.theme, JSON.stringify(applyTheme(b.dataset.thm))); again(); });
-  $$('#page [data-skin]').forEach(b=>b.onclick=()=>{ if (b.dataset.skin===skin) return; applySkin(b.dataset.skin); again(); });
+  $$('#page [data-pick="skin"]').forEach(sel=>sel.onchange=()=>{ if (sel.value!==skin) applySkin(sel.value); again(); });
   $$('#page [data-act]').forEach(b=>b.onclick=async ()=>{
     const a = b.dataset.act;
     if (a==='refresh'){ toast('Refreshing…'); await refresh(true); again(); }
